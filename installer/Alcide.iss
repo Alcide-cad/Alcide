@@ -77,6 +77,7 @@ Root: HKCU; Subkey: "Software\Classes\ALCIDE.ALCIDE"; ValueType: string; ValueDa
 Root: HKCU; Subkey: "Software\Classes\ALCIDE.ALCIDE\DefaultIcon"; ValueType: string; ValueData: """{app}\ALCIDE.exe"",0"
 Root: HKCU; Subkey: "Software\Classes\ALCIDE.ALCIDE\shell\open\command"; ValueType: string; ValueData: """{app}\ALCIDE.exe"" ""%1"""
 [InstallDelete]
+Type: filesandordirs; Name: "{app}\resources\app\engine"
 Type: files; Name: "{app}\DWG-Alcide.exe"
 Type: files; Name: "{userdesktop}\DWG-Alcide\DWG-Alcide.lnk"
 Type: files; Name: "{userprograms}\DWG-Alcide\DWG-Alcide.lnk"

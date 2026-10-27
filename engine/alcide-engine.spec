@@ -9,6 +9,9 @@ tmp_ret = collect_all('ezdxf')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('shapely')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+# ezdxf.addons.drawing imports PIL.Image at startup.
+tmp_ret = collect_all('PIL')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 # fontTools.ttLib loads table modules dynamically (fontTools.ttLib.tables.*).
 hiddenimports += collect_submodules('fontTools')
 

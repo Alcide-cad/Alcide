@@ -9,4 +9,5 @@
 | shapely / GEOS | BSD-3-Clause / LGPL-2.1 | https://github.com/shapely/shapely | yes |
 | orjson | Apache-2.0 / MIT | https://github.com/ijl/orjson | yes |
 | fontTools | MIT | https://github.com/fonttools/fonttools | yes |
+| Pillow | HPND | https://github.com/python-pillow/Pillow | yes (in engine) |
 | ODA File Converter | proprietary (free) | https://www.opendesign.com/guestfiles/oda_file_converter | **never bundled** – optional, installed by the user |

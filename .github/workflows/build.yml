@@ -34,6 +34,29 @@ jobs:
           python -m pip install -r engine/requirements.txt
           python -m PyInstaller --noconfirm --distpath build/engine-dist --workpath build/engine-work engine/alcide-engine.spec
 
+      - name: Smoke-test engine
+        run: |
+          $root = (Get-Location).Path
+          $exe = Join-Path $root "build/engine-dist/alcide-engine/alcide-engine.exe"
+          if (-not (Test-Path $exe)) { throw "Missing $exe" }
+          $empty = Join-Path $root "build/engine-empty-stdin.txt"
+          New-Item -ItemType File -Force $empty | Out-Null
+          $stdout = Join-Path $root "build/engine-smoke-stdout.txt"
+          $stderr = Join-Path $root "build/engine-smoke-stderr.txt"
+          # Imports run before the stdin loop. An empty stdin makes a healthy engine exit.
+          $p = Start-Process -FilePath $exe -ArgumentList "--help" -WorkingDirectory (Split-Path $exe) -RedirectStandardInput $empty -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+          if (-not $p.WaitForExit(60000)) {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            throw "alcide-engine.exe --help did not exit within 60s"
+          }
+          Write-Host "alcide-engine.exe --help exit=$($p.ExitCode)"
+          if (Test-Path $stdout) { Get-Content $stdout }
+          if (Test-Path $stderr) { Get-Content $stderr }
+          $errText = if (Test-Path $stderr) { Get-Content $stderr -Raw } else { "" }
+          if ($p.ExitCode -ne 0 -or $errText -match "ModuleNotFoundError|Traceback") {
+            throw "alcide-engine.exe failed to start (exit $($p.ExitCode))"
+          }
+
       - name: Assemble Electron runtime
         run: |
           $zip = "electron-v$env:ELECTRON_VERSION-win32-x64.zip"
