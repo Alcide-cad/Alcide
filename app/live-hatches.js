@@ -1,0 +1,17 @@
+// Live fill properties, shared by created contours, imported boundaries and native hatches.
+(()=>{
+ const card=$('#hatch-properties'),ids=['hatch-enabled','hatch-pattern','hatch-angle','hatch-spacing','hatch-color','hatch-alpha','hatch-background-enabled','hatch-background-color'];let timer=null,pending=null,running=false,group=null;
+ const capture=()=>Object.fromEntries(ids.map(id=>{const e=$('#'+id);return [id,e.type==='checkbox'?e.checked:e.value];}));
+ const restore=v=>{for(const id of ids){const e=$('#'+id);if(e.type==='checkbox')e.checked=v[id];else e.value=v[id];}$('#hatch-alpha-value').value=$('#hatch-alpha').value+' %';};
+ const context=()=>JSON.stringify([activeId,[...selected].sort()]);
+ function valid(v){return ['hatch-angle','hatch-spacing'].every(id=>v[id].trim()&&Number.isFinite(cadNumeric(v[id])))&&cadNumeric(v['hatch-spacing'])>0;}
+ async function flush(){timer=null;if(running||!pending)return;if(busy){timer=setTimeout(flush,60);return;}const task=pending;pending=null;if(task.context!==context()||drawingMode||!hatchTargets().length)return;restore(task.values);const depth=history.length,merge=group&&group.context===task.context&&group.control===task.control&&group.token===saveToken&&group.depth===depth&&performance.now()-group.time<900;running=true;
+  try{await $('#hatch-apply').onclick();if(task.context!==context())return;if(merge&&history.length>depth)history.splice(depth);group={context:task.context,control:task.control,token:saveToken,depth:history.length,time:performance.now()};}
+  finally{running=false;if(pending){if(pending.context===context())restore(pending.values);timer=setTimeout(flush,0);}}
+ }
+ window.requestLiveHatch=function(control){if(drawingMode||!scene||!hatchTargets().length)return;if(!['hatch-enabled','hatch-background-enabled','hatch-background-color'].includes(control))$('#hatch-enabled').checked=true;const values=capture();if(!valid(values))return;pending={context:context(),control,values};clearTimeout(timer);timer=setTimeout(flush,hatchTargets().some(e=>e.type==='HATCH')?70:0);};
+ for(const id of ids){const e=$('#'+id);for(const event of ['input','change'])e.addEventListener(event,()=>window.requestLiveHatch(id));}
+ window.addEventListener('keydown',ev=>{if(ev.ctrlKey&&ev.key.toLowerCase()==='z'){pending=null;clearTimeout(timer);group=null;}},true);
+ const css=document.createElement('style');css.textContent='#hatch-apply{display:none!important}';document.head.append(css);card.querySelector('p.muted').textContent='Les réglages modifient immédiatement le remplissage sélectionné. Sans sélection, ils règlent le prochain remplissage. Ctrl+Z annule.';
+ registerHelpTopic('Ajouter ou modifier un remplissage en direct',[Object.assign(document.createElement('p'),{textContent:'Sélectionnez le contour fermé d’un rectangle, un cercle ou un remplissage existant. Cliquez Uni, Diagonales ou Croisées : le remplissage est ajouté ou modifié immédiatement. Couleur, transparence, angle, espacement et fond indépendant se mettent à jour directement, sans bouton Appliquer. Le contrôle Remplissage actif permet de retirer puis réactiver le remplissage. Les contours importés fermés sont également acceptés. Avec Remplir au clic, cliquez dans la zone : le remplissage ajouté reste sélectionné pour permettre ses réglages en direct. Ctrl+Z annule la dernière modification ; le glissement d’un curseur s’annule comme un seul réglage.'})]);window.liveHatchReady=true;
+})();

@@ -1,0 +1,2 @@
+(()=>{const help=document.getElementById('helpdialog');help.showModal=function(){if(help.open)help.close();const topics=[...help.querySelectorAll('.help-articles>section')].map(section=>({title:section.querySelector('h3')?.textContent||'Aide',html:section.innerHTML}));window.alcide.openHelpWindow({theme:window.Theme09?.mode()||'dark',version:document.getElementById('help-version')?.textContent||'ALCIDE',topics}).catch(e=>status('Impossible d’ouvrir l’aide : '+e.message));};window.helpDetachedReady=true;})();
+

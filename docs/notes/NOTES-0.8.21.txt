@@ -1,0 +1,18 @@
+﻿ALCIDE 0.8.21 — Vérification fonctionnelle
+
+Validé dans Electron par gestes souris et clavier :
+- Ajuster : limite puis portion à retirer, lignes et polylignes ouvertes.
+- Prolonger : extrémité à prolonger puis limite, dans les deux orientations.
+- Raccorder : prolongement ou raccourcissement des extrémités choisies.
+- Couper : deux points A/B ou portion située entre deux limites détectées.
+- Annulation Ctrl+Z des modifications, y compris les créations de morceaux.
+- Import DXF natif et vue tournée à 30 degrés : Ajuster et Prolonger.
+- Limites verrouillées utilisables sans modification ; cibles verrouillées protégées.
+- Refus des opérations sans intersection, dégénérées ou incompatibles.
+- Longueurs : lignes, arcs mineurs/majeurs, cercles et polylignes avec arcs ; somme de sélection et unités.
+- Saisie X/Y : Entrée pose un point et prépare le suivant, sans doublon.
+- Cotes : poignées jaune et bleue séparées ; déplacement direct du texte ou par sa poignée, mesure conservée ; annulation.
+
+Périmètre des quatre outils de contour : lignes et polylignes ouvertes à segments droits. Les arcs et contours fermés ne sont pas couverts par ces corrections.
+
+Installeur construit, non installé automatiquement.

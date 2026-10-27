@@ -1,0 +1,38 @@
+/* Interaction surfaces. Geometry, hit areas and drawing grips stay unchanged. */
+:root{--ui-button-top:#2e3e4c;--ui-button-bottom:#22313d;--ui-button-border:#475b6a;--ui-button-text:#e4edf3;--ui-hover-border:#85afc4;--ui-focus:#a6d5f3}
+button.ui-button{position:relative;isolation:isolate;overflow:hidden;background:linear-gradient(180deg,var(--ui-button-top),var(--ui-button-bottom));border-color:var(--ui-button-border);color:var(--ui-button-text);border-radius:6px;box-shadow:inset 0 1px 0 #ffffff0c,0 1px 2px #0003;transition:background-color 120ms ease,border-color 120ms ease,box-shadow 120ms ease,color 120ms ease,filter 120ms ease,transform 80ms ease;}
+button.ui-button:not(:disabled):hover{background:linear-gradient(180deg,#3c5363,#2b4151);border-color:var(--ui-hover-border);box-shadow:inset 0 1px 0 #ffffff12,0 0 0 1px #8cc6e117,0 3px 8px #0004;color:#f4faff;}
+button.ui-button:not(:disabled):active,button.ui-button.ui-pressed:not(:disabled){transform:translateY(1px);background:linear-gradient(180deg,#1d303d,#2a4050);box-shadow:inset 0 2px 4px #0005;border-color:#99c1d4;}
+button.ui-button.active,button.ui-button[aria-pressed=true]{background:linear-gradient(180deg,#405c46,#2c4034);border-color:#9bc97c;color:#d8f7bd;box-shadow:inset 0 1px 0 #ffffff0e,inset 0 -2px 0 #a9d88470,0 1px 3px #0003;}
+button.ui-button.active:not(:disabled):hover,button.ui-button[aria-pressed=true]:not(:disabled):hover{background:linear-gradient(180deg,#4d6b50,#38533e);border-color:#c3e5a0;color:#eeffdc;}
+button.ui-button.primary{background:linear-gradient(180deg,#c3eaa0,#9dcd77);border-color:#c5e7a9;color:#1e321c;box-shadow:inset 0 1px 0 #f0ffdb66,0 2px 4px #0004;font-weight:600;}
+button.ui-button.primary:not(:disabled):hover{background:linear-gradient(180deg,#d2f4b3,#aedb89);border-color:#e4ffcb;color:#183012;box-shadow:inset 0 1px 0 #fff7,0 0 0 1px #c4eda52e,0 3px 10px #0004;}
+button.ui-button.primary:not(:disabled):active,button.ui-button.primary.ui-pressed:not(:disabled){background:linear-gradient(180deg,#91bd6d,#b6de91);box-shadow:inset 0 2px 4px #254b3044;}
+button.ui-button[data-ui-tone=danger]{border-color:#745054;color:#efc7c6;}
+button.ui-button[data-ui-tone=danger]:not(:disabled):hover{background:linear-gradient(180deg,#694044,#4d3036);border-color:#cc8588;color:#ffe6e1;}
+button.ui-button.destructive{background:linear-gradient(180deg,#eba58f,#d88d7b);border-color:#f3b7a3;color:#351b17;}
+button.ui-button.destructive:not(:disabled):hover{background:linear-gradient(180deg,#ffc0a8,#e7a08b);border-color:#ffd8c7;color:#351b17;}
+#selection-search #selection-search-apply.ui-button.destructive{background:linear-gradient(180deg,#eba58f,#d88d7b);border-color:#f3b7a3;color:#351b17;}
+#selection-search #selection-search-apply.ui-button.destructive:not(:disabled):hover{background:linear-gradient(180deg,#ffc0a8,#e7a08b);border-color:#ffd8c7;}
+button.ui-button:disabled{opacity:.38;filter:saturate(.55);transform:none;box-shadow:inset 0 1px 0 #ffffff08;cursor:default;}
+button.ui-button:focus-visible{outline:2px solid var(--ui-focus);outline-offset:2px;box-shadow:0 0 0 4px #7cbbde20;}
+button.ui-button>.ui-icon{width:18px;height:18px;flex:0 0 18px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;color:var(--ui-icon-color,#b6d99b);transition:color 120ms ease,filter 120ms ease;}
+button.ui-button:not(:disabled):hover>.ui-icon{filter:drop-shadow(0 0 3px #a5dbe833);color:#e1f5ff;}
+button.ui-button.active>.ui-icon,button.ui-button[aria-pressed=true]>.ui-icon{color:#c7ed9e;}
+#ribboncontent button.ui-button .tool-pictogram{transition:filter 120ms ease,color 120ms ease;}
+#ribboncontent button.ui-button:not(:disabled):hover .tool-pictogram{filter:drop-shadow(0 0 3px #a8dbeb33);}
+#ribboncontent .ribbon-group{border-right-color:#41515d70;}
+#ribboncontent .ribbon-group>small{color:#9cacb8;}
+.ribbon-tabs>button.ui-button{border:1px solid transparent;border-bottom-width:2px;border-radius:5px 5px 0 0;box-shadow:none;background:transparent;color:#aebdc9;}
+.ribbon-tabs>button.ui-button:not(:disabled):hover{background:linear-gradient(180deg,#30435299,#24374599);border-color:#526b7e70;color:#ecf7ff;box-shadow:none;}
+.ribbon-tabs>button.ui-button[aria-selected=true]{background:linear-gradient(180deg,#3a5040,#293c31);border-color:#637d5a66;border-bottom-color:#b5dd8e;color:#d9f3bc;box-shadow:inset 0 1px 0 #ffffff08;}
+#toolquickbar button.ui-button{border-color:#425665;box-shadow:inset 0 1px 0 #ffffff08,0 1px 1px #0002;}
+.numeric-stepper-buttons>button.ui-button{border-radius:0;box-shadow:none;transform:none!important;}
+.numeric-stepper-buttons>button.ui-button:first-child{border-radius:0 5px 0 0;}
+.numeric-stepper-buttons>button.ui-button:last-child{border-radius:0 0 5px 0;}
+.numeric-stepper-buttons>button.ui-button:not(:disabled):hover{background:#3a586a;color:#dcf7bc;box-shadow:inset 2px 0 0 #b3db8e;}
+button.ui-button.ui-click::after{content:'';position:absolute;z-index:-1;pointer-events:none;width:100px;height:100px;left:var(--ui-click-x,50%);top:var(--ui-click-y,50%);border-radius:50%;background:radial-gradient(circle,#d2eaff42 0,#c8e7fc12 50%,transparent 72%);animation:ui-button-wave 320ms ease-out both;}
+@keyframes ui-button-wave{from{transform:translate(-50%,-50%) scale(.3);opacity:.9}to{transform:translate(-50%,-50%) scale(2.6);opacity:0}}
+#ribbon-tooltip{border-color:#668395;border-radius:7px;box-shadow:0 6px 22px #0006,inset 0 1px 0 #ffffff0a;}
+@media(prefers-reduced-motion:reduce){button.ui-button,button.ui-button>.ui-icon,#ribboncontent button.ui-button .tool-pictogram{transition:none!important}button.ui-button:not(:disabled):active,button.ui-button.ui-pressed:not(:disabled){transform:none}button.ui-button.ui-click::after{animation:none;content:none}}
+@media(forced-colors:active){button.ui-button{background:ButtonFace;color:ButtonText;border-color:ButtonText;box-shadow:none}button.ui-button.active,button.ui-button[aria-pressed=true],.ribbon-tabs>button.ui-button[aria-selected=true]{border-color:Highlight;outline:1px solid Highlight}button.ui-button:disabled{color:GrayText;opacity:1}button.ui-button.ui-click::after{content:none}}

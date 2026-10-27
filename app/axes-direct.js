@@ -1,0 +1,3 @@
+(()=>{const b=$('#axestool');if(!b)return;b.onclick=()=>{if(!scene||busy)return;$('#axesedit').hidden=true;$('#axesplace').click();overlay.focus({preventScroll:true});};b.title='Tracer un axe directement · deux points · réglages dans Propriétés';})();
+
+registerHelpTopic('Tracer un axe directement',[Object.assign(document.createElement('p'),{textContent:'Annotations → Axes lance immédiatement le tracé avec les réglages en cours. Cliquez le départ puis l’arrivée ; les repères d’alignement sont disponibles dès le premier point. La palette Propriétés permet de régler direction, pastilles, repère, hauteur, nombre et espacement. Après la pose, le prochain repère est proposé ; Échap termine.'})]);

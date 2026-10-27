@@ -1,0 +1,2 @@
+// One opening tool for doors, windows and reservations. Legacy shortcut IDs stay valid.
+(()=>{window.startOpeningDimension=()=>startDoorDimension();for(const id of ['window-dimension-tool','reservation-dimension-tool']){const alias=document.createElement('button');alias.id=id;alias.hidden=true;alias.style.display='none';alias.setAttribute('aria-hidden','true');alias.tabIndex=-1;alias.onclick=()=>startOpeningDimension();document.body.append(alias);}$('#door-dimension-tool').onclick=()=>startOpeningDimension();})();

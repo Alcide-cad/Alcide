@@ -1,0 +1,17 @@
+﻿ALCIDE 0.8.24 — Vérifications fonctionnelles
+
+- Ajout et déplacement d’un sommet : les remplissages liés suivent le contour, y compris les HATCH natifs importés.
+- Annulation : contour et remplissage reviennent ensemble à leur état précédent.
+- Export DXF et réouverture : nombre de sommets et boucles de remplissage cohérents.
+- Hachures : remplacement de la boucle concernée, réservation intérieure préservée.
+- Bouton Ajouter un sommet : libellé entier vérifié à 1280, 1440 et 1920 pixels.
+- Ctrl+A : sélection du dessin, aucune sélection de texte de l’interface ; saisie dans les champs conservée.
+- Paramètres : champs numériques alignés, couleur de sélection personnalisable, aperçu immédiat, mémorisation et réinitialisation vérifiés.
+- Doublons : nouvelle présentation ; analyse, annulation du dialogue, suppression et Ctrl+Z validés.
+- Abouts : huit styles avec aperçu ; choix, Ctrl+Z, export et réouverture des huit styles validés.
+- Mise à l’échelle : facteur saisi dans le dialogue ; nouveau mode longueur A vers B avec mesure de A par deux clics. Test 100 vers 250, point fixe et annulation.
+- Coupe : distinction automatique/manuelle, accroches et guides de la coupe entre deux points conservés ; tests de régression réussis.
+- Mesures de sélection : longueurs, arcs, cercles, polylignes et cumul vérifiés.
+
+Tests exécutés dans Electron par gestes souris/clavier et contrôles géométriques. Le suivi des remplissages couvre les contours fermés droits modifiables ; la gestion des solides 3D n’est pas ajoutée.
+Installeur construit, sans installation automatique.

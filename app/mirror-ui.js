@@ -1,0 +1,8 @@
+(()=>{
+ const button=$('#core-mirror'),group=[...document.querySelectorAll('#ribbon-accueil .ribbon-group')].find(g=>g.querySelector('#move'));
+ group?.querySelector('.ribbon-tools')?.append(button);button.title='Miroir ou copie miroir · objets avant ou après lancement · Entrée valide la sélection · deux points de l’axe · Maj / Ortho pour un axe horizontal ou vertical';
+ const draw=drawOverlay;drawOverlay=function(){draw();let quick=$('#quick-mirror');if(tool==='select'&&selected.size&&!coreTool){if(!quick){quick=document.createElement('button');quick.id='quick-mirror';quick.textContent='Miroir';quick.onclick=()=>startCoreTool('mirror');$('#toolquickbar').append(quick);}}else quick?.remove();
+ let confirm=$('#quick-mirror-selection');if(coreTool?.mode==='mirror'&&coreTool.phase==='selection'){if(!confirm){confirm=document.createElement('button');confirm.id='quick-mirror-selection';confirm.onclick=()=>$('#core-mirror-axis').click();$('#toolquickbar').append(confirm);}confirm.textContent='Définir l’axe · Entrée ('+selected.size+')';confirm.disabled=!selected.size;}else confirm?.remove();
+ let mode=$('#quick-mirror-mode');if(coreTool?.mode==='mirror'){if(!mode){mode=document.createElement('label');mode.id='quick-mirror-mode';mode.textContent='Mode ';const s=document.createElement('select');s.id='quick-mirror-choice';s.append(new Option('Copie miroir','copy'),new Option('Miroir','replace'));s.onchange=()=>$('#core-mirror-copy').checked=s.value==='copy';mode.append(s);$('#toolquickbar').append(mode);}if(document.activeElement!==mode.querySelector('select'))mode.querySelector('select').value=$('#core-mirror-copy').checked?'copy':'replace';}else mode?.remove();
+ };
+})();

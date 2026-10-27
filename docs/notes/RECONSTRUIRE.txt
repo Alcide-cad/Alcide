@@ -1,0 +1,32 @@
+Reconstruction ALCIDE 0.3.5 (Windows x64)
+
+Sources : main.cjs, preload.cjs, app.js, layers.js, editing.js, grips.js, annotations.js, layer-panel.js, layer-context.js, layer-groups.js, dimension-settings.js, native-dimensions.js, snap-assist.js, similar-preview.js, tool-quickbar.js, chain-objects.js, selection-layers.js, layer-ergonomics.js, cad-tools.js, text-tools.js, auto-dimension.js, ribbon.js, lisp.js, index.html, style.css, ribbon.css,
+engine.py, package.json, icon.ico et Essai-Alcide.dxf.
+
+Environnement testé : Electron 44.5.1 ; Python 3.10.10 ; ezdxf 1.4.4 ;
+orjson 3.13.0 ; numpy 2.2.6 ; fonttools 4.65.0 ; Pillow 12.3.0 ; pyparsing 3.3.3 ;
+typing_extensions 4.16.0 ; PyInstaller 6.22.3 ; LibreDWG 0.14.
+
+Installer les dépendances Python dans un environnement dédié :
+python -m pip install orjson==3.13.0 ezdxf==1.4.4 numpy==2.2.6 fonttools==4.65.0 Pillow==12.3.0 pyparsing==3.3.3 typing_extensions==4.16.0 pyinstaller==6.22.3
+
+Compiler le moteur :
+python -m PyInstaller --noconfirm --onedir --console --name alcide-engine --collect-all ezdxf engine.py
+
+Copier dist\alcide-engine dans resources\app\engine de la distribution
+Electron. Placer les exécutables et DLL LibreDWG dans ce sous-dossier :
+resources\app\engine\dwg. La licence et l'archive source LibreDWG sont
+incluses. Les binaires officiels utilisés proviennent de :
+https://github.com/LibreDWG/libredwg/releases/tag/0.14
+
+Copier les sources de l'interface dans resources\app. Electron démarre
+main.cjs selon package.json. Renommer electron.exe en ALCIDE.exe.
+L'installateur est compilé avec Inno Setup et Alcide.iss. Adapter les
+chemins AppSource / OutputDir de ce script à l'environnement local.
+
+Le moteur JSON reçoit sur stdin une requête JSON par ligne avec id, cmd
+et paramètres ; il répond sur stdout avec id et result / error.
+Commandes : open(path), layout(layout), export(path,changes,dimensions).
+Les diagnostics sont écrits sur stderr. Les opérations CAO sont effectuées
+dans un processus distinct pour préserver la réactivité de l'interface.
+

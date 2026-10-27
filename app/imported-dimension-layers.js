@@ -1,0 +1,24 @@
+function classifyImportedDimensions(groups){
+ if(!scene||busy||!groups.length)return;
+ const ids=[...new Set(groups.flatMap(g=>g.ids))],es=ids.map(id=>entities.get(id));
+ if(es.some(e=>!e||isLocked(e)||edits[e.id]?.deleted))throw Error('Des objets ne sont plus disponibles ou sont verrouillés. Relancez l’analyse.');
+ const before=snapshot(),name='COTATION importée';
+ if(!baseLayer(name))setLayerPatch(name,{created:true,color:'#a9df80',lineweight:0,visible:true,locked:false,transparency:0});
+ for(const e of es){const old=edits[e.id]||{},p=e.primitives?.find(p=>!p.hatchBackground),layer=layerSettings(e.layer)||baseLayer(e.layer)||{},props={...old.props,layer:name};
+ if(!old.props?.color&&e.color===256&&e.trueColor==null)props.color=layer.color||p?.color||'#e6edf3';
+ if((old.props?.lineweight??e.lineweight??-1)===-1)props.lineweight=layer.lineweight??0;
+ if((old.props?.linetype??e.linetype??'BYLAYER').toUpperCase()==='BYLAYER')props.linetype=layer.linetype||'Continuous';
+ if(e.byLayerTransparency&&!Object.hasOwn(old.props||{},'transparency'))props.transparency=layer.transparency??0;
+ edits[e.id]={...old,props,importedClassification:{type:'dimension',originalLayer:e.layer,originalProps:old.props||{}}};
+ }
+ syncCreatedLayers();selected=new Set(ids);commit(before);layersUI();status(es.length+' objets rangés dans « '+name+' » · géométrie conservée · Ctrl+Z annule.');return ids;
+}
+(()=>{
+ const dialog=document.createElement('dialog');dialog.id='imported-dimensions-dialog';dialog.innerHTML='<h2>Ranger les cotations importées</h2><p>Textes numériques et traits ressemblant à des cotations, regroupés ou sans groupe. Vérifiez les candidats avant de les ranger dans « COTATION importée ». Leur géométrie reste inchangée.</p><p id="imported-dimensions-info"></p><button id="imported-dimensions-all">Tout cocher</button> <button id="imported-dimensions-none">Tout décocher</button><div id="imported-dimensions-results" style="max-height:45vh;overflow:auto"></div><button id="imported-dimensions-apply" class="primary" disabled>Ranger les candidats cochés</button> <button id="imported-dimensions-close">Fermer</button>';document.body.append(dialog);let pending=null;
+ const checks=()=>[...dialog.querySelectorAll('#imported-dimensions-results input:checked')];
+ function sync(){const groups=checks().map(c=>pending.groups[Number(c.dataset.index)]);reconstructionPreview=new Set(groups.flatMap(g=>g.ids));$('#imported-dimensions-apply').disabled=!groups.length;requestRender();}
+ $('#imported-dimensions-all').onclick=()=>{dialog.querySelectorAll('#imported-dimensions-results input').forEach(c=>c.checked=true);sync();};$('#imported-dimensions-none').onclick=()=>{dialog.querySelectorAll('#imported-dimensions-results input').forEach(c=>c.checked=false);sync();};$('#imported-dimensions-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{reconstructionPreview=null;requestRender();});
+ $('#imported-dimensions-apply').onclick=()=>{if(!pending||pending.doc!==activeId||pending.token!==saveToken){status('Le dessin a changé : relancez l’analyse.');return;}try{classifyImportedDimensions(checks().map(c=>pending.groups[Number(c.dataset.index)]));dialog.close();}catch(ex){error(ex);}};
+ const b=document.createElement('button');b.id='imported-dimensions-tool';b.innerHTML='<span class="ribbon-icon">⌗</span><span>Ranger les cotes importées</span>';$('#reconstruction-tool').parentElement.append(b);
+ b.onclick=async()=>{if(!scene||busy)return;const doc=activeId,token=saveToken;pending=null;$('#imported-dimensions-results').replaceChildren();$('#imported-dimensions-apply').disabled=true;$('#imported-dimensions-info').textContent='Analyse…';dialog.showModal();busyState(true,'Analyse des cotations importées…');try{const ignored=Object.entries(edits).filter(([id,e])=>e.deleted||e.geometry||e.rotation||e.dx||e.dy||e.textStyle||e.importedClassification).map(([id])=>id);const r=await api.recognizeDimensions({docId:doc,layout:scene.layout,convention:'allplan',scale:0,ignored});if(doc!==activeId)return;const reliable=new Set(r.proposals.map(g=>g.name));pending={doc,token,groups:r.importedCandidates||r.proposals};for(const [i,g]of pending.groups.entries()){const label=document.createElement('label');label.className='audit-row';const c=document.createElement('input');c.type='checkbox';c.dataset.index=i;c.onchange=sync;const text=document.createElement('span');text.textContent=g.name+' · '+g.ids.length+' objets · '+(reliable.has(g.name)?'Reconstruction possible':'Candidat à vérifier')+' · '+g.labels.join(' / ');label.title=(g.layers||[g.layer]).join(' · ');label.append(c,text);$('#imported-dimensions-results').append(label);}$('#imported-dimensions-info').textContent=pending.groups.length+' candidats · aucun coché par défaut. Cliquez une case pour repérer les objets en orange.';sync();}catch(ex){$('#imported-dimensions-info').textContent=ex.message;error(ex);}finally{busyState(false);}};
+})();

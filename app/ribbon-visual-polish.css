@@ -1,0 +1,16 @@
+#ribboncontent #ribbon-armatures{padding:5px 6px 3px!important;background:#1b2a35;align-items:stretch!important}
+#ribboncontent #ribbon-armatures .rebar-command-group{min-height:0!important;padding:2px 10px 0!important;justify-content:space-between!important;border-right:1px solid #364c5b}
+#ribboncontent #ribbon-armatures .rebar-command-group>small{margin:3px 0 0!important;font-size:10px!important;font-weight:500;letter-spacing:.35px;color:#9eb4c3;line-height:12px!important;white-space:nowrap}
+#ribboncontent #ribbon-armatures .rebar-command-tools{grid-template-rows:repeat(3,21px)!important;gap:3px 5px!important;align-content:start!important}
+#ribboncontent #ribbon-armatures .rebar-command-tools button{height:21px!important;min-height:21px!important;border-radius:5px!important;padding:2px 6px!important;font-size:11px!important;font-weight:400;line-height:16px!important;gap:6px;transition:background-color .12s,border-color .12s;box-shadow:none}
+#ribboncontent #ribbon-armatures .rebar-command-tools button svg{width:18px!important;height:18px!important;flex:0 0 18px!important;stroke-width:1.6;color:#b0d58f}
+#ribboncontent #ribbon-armatures .rebar-command-tools button:hover:not(:disabled){background:#304a59;border-color:#587484}
+#ribboncontent #ribbon-armatures .rebar-command-tools button:focus-visible{outline:2px solid #83c8ea;outline-offset:1px}
+#ribboncontent #ribbon-armatures .rebar-command-tools button.active{background:#304c43;border-color:#91b86e}
+#ribboncontent #ribbon-armatures .rebar-shapes-group .rebar-command-tools{grid-template-rows:repeat(2,32px)!important;grid-template-columns:repeat(3,100px)!important;gap:4px!important}
+#ribboncontent #ribbon-armatures .rebar-shapes-group .rebar-command-tools button{width:100px!important;height:32px!important;min-height:32px!important;flex-direction:row!important;justify-content:flex-start!important;align-items:center!important;padding:4px 6px!important;background:#253b48;border:1px solid #405c6a;font-size:10px!important;gap:5px}
+#ribboncontent #ribbon-armatures #rebar-filants-group>.rebar-command-tools{grid-template-rows:repeat(2,32px)!important;grid-auto-columns:120px!important;gap:4px!important}
+#ribboncontent #ribbon-armatures #rebar-filants-group :is(#rebar-linear-tool-main,#filant-new-detail-ribbon){width:120px!important;height:32px!important;min-height:32px!important;flex-direction:row!important;justify-content:flex-start!important;text-align:left!important;gap:7px;background:#253b48;border:1px solid #405c6a}
+#ribboncontent #ribbon-armatures .rf-toggle{border:1px solid #405c6a;border-radius:7px;background:#253b48;box-shadow:none}
+@media(min-width:1600px){#ribboncontent #ribbon-armatures .rebar-command-group{padding-left:12px!important;padding-right:12px!important}}
+@media(prefers-reduced-motion:reduce){#ribboncontent #ribbon-armatures .rebar-command-tools button{transition:none}}

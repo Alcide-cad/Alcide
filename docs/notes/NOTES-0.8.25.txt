@@ -1,0 +1,11 @@
+﻿ALCIDE 0.8.25 — Vérifications fonctionnelles
+
+Textes : curseur de priorité utilisable pour les textes libres ; ordre réellement appliqué entre textes et objets du dessin. Test à la souris devant/derrière un remplissage, Ctrl+Z, double-clic, modification du contenu, export DXF et réouverture. Les cotes et repères gardent leur plan d’annotation.
+Ajouter un sommet : premier clic ajoute le sommet et permet son déplacement immédiat ; second clic fixe la position ; Échap conserve le sommet au premier clic. Remplissage synchronisé et annulation testés.
+Aciers : ajout de plusieurs segments successifs sans relancer la commande. Aperçu arrondi suivant le mandrin de la barre ; développé recalculé ; segment trop court pour ce mandrin refusé. Entrée/Échap termine en conservant les segments validés, Ctrl+Z annule le dernier. Guide facultatif par contour fermé de coffrage et enrobage saisi : test HA12, enrobage 40 mm, recul à l’axe 46 mm.
+Cercles : rayon et diamètre modifiables dans les propriétés, centre fixe ; remplissages unis et hachures circulaires liés suivent. Annulation, export DXF exact et réouverture testés.
+Limites des cotes : dix styles avec aperçu, dont oblique, double oblique, rond plein/vide et carré à 45 degrés plein/vide. Tests de choix et d’export/réouverture des carrés pleins et vides.
+Régression : suivi des hachures de contours après ajout/déplacement de sommets, réservation préservée, annulation conjointe et export/réouverture validés.
+
+Tests exécutés dans Electron avec gestes souris/clavier et contrôles de géométrie/rendu. Le choix du mandrin provient des réglages de l’acier ; aucune nouvelle justification structurelle automatique n’est ajoutée.
+Installeur construit, sans installation automatique.

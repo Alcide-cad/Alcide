@@ -1,0 +1,8 @@
+{
+  "name": "alcide",
+  "version": "1.0.8",
+  "description": "Logiciel de dessin — compatible avec les fichiers .dwg",
+  "main": "main.cjs",
+  "license": "GPL-3.0-or-later",
+  "productName": "ALCIDE"
+}

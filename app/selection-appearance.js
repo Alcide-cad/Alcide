@@ -1,0 +1,19 @@
+(()=>{
+ const fallback='#66b3ff',stored=localStorage.getItem('selectionAppearanceColor');window.selectionAppearanceColor=/^#[0-9a-f]{6}$/i.test(stored||'')?stored:fallback;
+ const root=document.getElementById('preferences-content');
+ function mount(){if(root.dataset.section!=='drawing'||root.querySelector('#selection-appearance'))return;const groups=root.querySelector('.preferences-groups');if(!groups)return;
+  const card=document.createElement('section');card.id='selection-appearance';card.className='preferences-card preferences-wide';card.innerHTML='<h3>Sélection des objets</h3><div class="selection-colour-row"><label for="selection-appearance-colour">Couleur de sélection</label><input type="color" id="selection-appearance-colour" aria-label="Couleur de sélection"><span id="selection-colour-code"></span><button id="selection-colour-reset" type="button">Rétablir le bleu</button></div><div id="selection-colour-preview"><svg width="78" height="38" viewBox="0 0 78 38" aria-hidden="true"><path d="M10 28 38 10 68 26" fill="none" stroke="currentColor" stroke-width="2"/><rect x="7" y="25" width="6" height="6" fill="currentColor"/><rect x="35" y="7" width="6" height="6" fill="currentColor"/><rect x="65" y="23" width="6" height="6" fill="currentColor"/></svg><span>Aperçu d’un objet sélectionné</span></div><p class="preferences-hint">S’applique à la surbrillance des objets, des textes et des repères sélectionnés. Les couleurs du dessin sont conservées.</p>';groups.append(card);
+  const input=card.querySelector('input'),code=card.querySelector('#selection-colour-code'),preview=card.querySelector('#selection-colour-preview');function update(value){window.selectionAppearanceColor=value;localStorage.setItem('selectionAppearanceColor',value);input.value=value;code.textContent=value.toUpperCase();preview.style.color=value;requestRender();}input.value=selectionColor();code.textContent=input.value.toUpperCase();preview.style.color=input.value;input.addEventListener('input',()=>update(input.value));input.addEventListener('change',()=>update(input.value));card.querySelector('button').onclick=()=>update(fallback);
+ }
+ new MutationObserver(mount).observe(root,{childList:true,subtree:true});mount();requestRender();
+ const css=document.createElement('style');css.textContent=`
+ #preferences-dialog .preferences-delay .numeric-stepper{display:flex!important;align-items:stretch!important;box-sizing:border-box;height:36px!important;min-height:36px!important;max-height:36px!important}
+ #preferences-dialog .preferences-delay .numeric-stepper>input{height:36px!important;min-height:0!important;max-height:36px!important;flex:1 1 auto;min-width:0;margin:0!important}
+ #preferences-dialog .preferences-delay .numeric-stepper>.numeric-stepper-buttons{display:grid!important;grid-template-rows:18px 18px!important;height:36px!important;min-height:0!important;flex:0 0 26px!important;align-self:stretch!important}
+ #preferences-dialog .preferences-delay .numeric-stepper>.numeric-stepper-buttons>button{height:18px!important;min-height:0!important;max-height:18px!important;margin:0!important;padding:0!important;line-height:1!important;box-sizing:border-box!important;font-size:10px!important}
+ #selection-appearance .selection-colour-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px}
+ #selection-appearance label{margin-right:auto}#selection-appearance input[type=color]{width:48px!important;height:32px!important;padding:3px;flex:none;cursor:pointer}
+ #selection-colour-code{font:12px Consolas,monospace;color:#bdcdd8}#selection-colour-reset{min-height:30px;font-size:12px;padding:5px 9px}
+ #selection-colour-preview{display:flex;align-items:center;gap:12px;background:#111820;border:1px solid #405564;border-radius:7px;padding:9px 12px;margin-top:14px;font-size:12px}
+ `;document.head.append(css);
+})();

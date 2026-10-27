@@ -1,0 +1,6 @@
+﻿ALCIDE 0.8.23
+Dessin > Modifier > Ajouter un sommet : cliquez sur un segment pour ajouter un sommet réel, puis Échap pour revenir en sélection et déplacer sa poignée.
+Une droite devient une polyligne ; les contours fermés restent fermés. Les lignes et polylignes droites sont prises en charge, y compris les rectangles et contours obliques. Les arêtes d'un volume dessiné en 2D se modifient séparément ; aucun solide 3D n'est géré.
+Tests Electron : ajout, déplacement réel de poignée, double annulation sur ligne, polyligne, rectangle et contour oblique ; segment de fermeture ; refus d'un sommet dupliqué. Conversion d'une droite DXF importée, export et réouverture sans doublon.
+Inclus : accroches et guides pour Couper entre deux points, sans modification de Couper au clic. Tests de précision aux intersections réussis.
+Installeur construit ; aucune installation automatique.

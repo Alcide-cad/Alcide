@@ -1,0 +1,7 @@
+ALCIDE 0.8.20
+Dessiner un acier : huit icônes directement visibles, noms au survol, commandes accessibles au clavier. Barre droite, crosses, U, cadre, épingle, équerre, point et cerce. Affichage contrôlé à 1280, 1600 et 1920 pixels.
+Cadres : fermeture intégrée au coin supérieur droit, retours parallèles et développé recalculé. Contrôles sur sept diamètres, deux retours et contour à l’axe respecté.
+Gérer > Supprimer les doublons : lignes, polylignes droites, cercles, arcs et points de mêmes attributs et géométrie superposée. Portée sélection ou espace actif visible, tolérance, aperçu avant suppression. Armatures, groupes, objets liés et verrouillés protégés. Autres familles conservées. Ctrl+Z restaure les suppressions.
+Armatures > Armatures superposées : contrôle distinct et sans suppression. Superpositions complètes de HA et TS ; vues liées du même acier distinguées des positions physiques différentes. Les recouvrements partiels ne sont pas traités comme des doublons. Sélection des éléments pour examen sans modifier leurs quantités.
+Texte d’accueil de l’installeur révisé. Nouveautés 0.8.19 conservées, dont les cerces avec choix EC2/EC8 de première génération et les contrôles limités de fermeture décrits dans la version précédente.
+Vérifications en instances isolées : suppression avec aperçu/annulation, quatre familles géométriques, styles distincts, protections, sélection et un Ctrl+Z ; contrôle HA/TS, vues liées, quantités inchangées ; cas de lignes inversées, contours fermés tournés/inversés, limites de tolérance et 5000 doublons.

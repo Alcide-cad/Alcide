@@ -1,0 +1,9 @@
+let numericReferencePicking=null;
+function beginNumericReference(){const c=hoverTransformContext();if(!c)return;numericReferencePicking={doc:activeId,token:saveToken,kind:c.kind,anchor:[...c.anchor]};overlay.focus();status('Cliquez le point de référence · puis renseignez X/Y · le clic suivant appliquera.');}
+(()=>{
+ let stretchWindow=null;
+ window.addEventListener('pointerdown',ev=>{if(ev.target!==overlay||ev.button!==0||ev.altKey||busy)return;if(numericReferencePicking){ev.preventDefault();ev.stopImmediatePropagation();const p=numericReferencePicking,c=hoverTransformContext();numericReferencePicking=null;if(!c||p.doc!==activeId||p.token!==saveToken||p.kind!==c.kind||cadDistance(p.anchor,c.anchor)>1e-8)return;const point=snap(eventPoint(ev));transformHoverReference={point:[...point],doc:activeId,token:saveToken,kind:c.kind,origin:[...c.anchor]};$('#numeric-mode').value='xy';$('#numeric-x').value=$('#numeric-y').value='0';$('#numeric-mode').onchange();$('#numeric-x').select();status('Référence choisie · X/Y depuis ce point · clic pour appliquer.');return;}if(cadMode?.mode==='stretch'&&!cadMode.points.length)stretchWindow={pixel:eventPoint(ev),mode:cadMode};},true);
+ window.addEventListener('pointerup',ev=>{const g=stretchWindow;stretchWindow=null;if(!g||ev.target!==overlay||ev.button!==0||cadMode!==g.mode||cadMode.points.length!==1||cadDistance(eventPoint(ev),g.pixel)<4)return;ev.preventDefault();ev.stopImmediatePropagation();overlay.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:ev.clientX,clientY:ev.clientY,button:0,pointerId:ev.pointerId}));},true);
+ window.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&numericReferencePicking){ev.preventDefault();ev.stopImmediatePropagation();numericReferencePicking=null;status('Choix de référence annulé · valeurs conservées.');}},true);
+ const set=setTool;setTool=function(...args){numericReferencePicking=null;stretchWindow=null;return set(...args);};
+})();

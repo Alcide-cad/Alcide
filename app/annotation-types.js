@@ -1,0 +1,2 @@
+/* Keep axes and levels distinct from ordinary text during selection. */
+(()=>{objectNames.AXIS='Axe';objectNames.LEVEL='Niveau';movableTypes.add('AXIS');movableTypes.add('LEVEL');const entity=annotationEntity;annotationEntity=function(id,edit){const e=entity(id,edit);if(edit.annotation?.axis)e.type='AXIS';else if(edit.annotation?.level)e.type='LEVEL';e.tags[0]=e.type;return e;};const smart=smartSimilarity;smartSimilarity=function(e){return e.type==='AXIS'?['axe']:e.type==='LEVEL'?['niveau']:smart(e);};})();

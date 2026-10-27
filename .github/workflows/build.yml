@@ -1,0 +1,81 @@
+name: Build Windows installer
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  ELECTRON_VERSION: '44.5.1'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: ver
+        run: |
+          $v = (Get-Content app/package.json | ConvertFrom-Json).version
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build engine (PyInstaller)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r engine/requirements.txt
+          python -m PyInstaller --noconfirm --distpath build/engine-dist --workpath build/engine-work engine/alcide-engine.spec
+
+      - name: Assemble Electron runtime
+        run: |
+          $zip = "electron-v$env:ELECTRON_VERSION-win32-x64.zip"
+          Invoke-WebRequest "https://github.com/electron/electron/releases/download/v$env:ELECTRON_VERSION/$zip" -OutFile "build/$zip"
+          Expand-Archive "build/$zip" build/runtime
+          Remove-Item build/runtime/resources/default_app.asar -ErrorAction SilentlyContinue
+          Rename-Item build/runtime/electron.exe ALCIDE.exe
+          Copy-Item app build/runtime/resources/app -Recurse
+          New-Item -ItemType Directory -Force build/runtime/resources/app/engine | Out-Null
+          Copy-Item build/engine-dist/alcide-engine/* build/runtime/resources/app/engine -Recurse
+
+      - name: Fetch LibreDWG
+        run: ./third_party/fetch-libredwg.ps1 -Dest build/runtime/resources/app/engine/dwg
+
+      - name: Set ALCIDE.exe icon and metadata
+        run: |
+          # npm package rcedit@4 is a library with no CLI; use the electron/rcedit binary it wraps.
+          $rcedit = Join-Path $env:TEMP "rcedit-x64.exe"
+          Invoke-WebRequest "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe" -OutFile $rcedit
+          Unblock-File $rcedit
+          & $rcedit "build/runtime/ALCIDE.exe" --set-icon "app/app-icon.ico" --set-version-string ProductName ALCIDE --set-version-string FileDescription ALCIDE --set-file-version "${{ steps.ver.outputs.version }}" --set-product-version "${{ steps.ver.outputs.version }}"
+          if ($LASTEXITCODE -ne 0) { throw "rcedit failed with exit code $LASTEXITCODE" }
+
+      - name: Build installer (Inno Setup)
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" installer/Alcide.iss
+
+      # TODO: SignPath Foundation signing (once the project is accepted)
+      # - uses: actions/upload-artifact@v4
+      #   id: unsigned
+      #   with: { name: unsigned, path: dist/*.exe }
+      # - uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: '<SIGNPATH_ORG_ID>'
+      #     project-slug: 'alcide'
+      #     signing-policy-slug: 'release-signing'
+      #     github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+      #     wait-for-completion: true
+      #     output-artifact-directory: dist-signed
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Installer-ALCIDE-${{ steps.ver.outputs.version }}-unsigned
+          path: dist/*.exe

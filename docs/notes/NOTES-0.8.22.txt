@@ -1,0 +1,6 @@
+﻿ALCIDE 0.8.22
+- Couper au clic : intersections détectées automatiquement sur lignes et polylignes ouvertes à segments droits ; coupe entre deux limites ou entre une limite et une extrémité.
+- Couper entre 2 points : choix explicite de A puis B, sans mode automatique redondant.
+- Panneau de propriétés adapté à la coupe, sans direction des cotes ni réglages généraux sans rapport.
+Vérification Electron par gestes souris : lignes, polylignes, portions centrales et extrémités, annulation Ctrl+Z, attente obligatoire du point B, restauration du panneau après sortie. Tests réussis.
+Installeur construit sans installation automatique.

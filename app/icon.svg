@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256"><defs>
+<linearGradient id="bg" x2=".8" y2="1"><stop stop-color="#354449"/><stop offset=".45" stop-color="#16272d"/><stop offset="1" stop-color="#080f16"/></linearGradient>
+<linearGradient id="edge" x2=".8" y2="1"><stop stop-color="#f2ffda"/><stop offset=".35" stop-color="#9ecf7b"/><stop offset=".75" stop-color="#435d49"/><stop offset="1" stop-color="#b8e895"/></linearGradient>
+<linearGradient id="metal" x1=".2" y1="0" x2=".75" y2="1"><stop stop-color="#f1ffd4"/><stop offset=".28" stop-color="#c9ed94"/><stop offset=".52" stop-color="#83bb56"/><stop offset=".7" stop-color="#d4f4a3"/><stop offset="1" stop-color="#6eaa45"/></linearGradient>
+<linearGradient id="side" x2="0" y2="1"><stop stop-color="#638e40"/><stop offset="1" stop-color="#223c27"/></linearGradient>
+<radialGradient id="light" cx=".3" cy="0" r="1"><stop stop-color="#edffce" stop-opacity=".2"/><stop offset="1" stop-color="#edffce" stop-opacity="0"/></radialGradient></defs>
+<rect x="9" y="9" width="238" height="238" rx="49" fill="url(#bg)" stroke="url(#edge)" stroke-width="3"/>
+<rect x="14" y="14" width="228" height="228" rx="45" fill="url(#light)" stroke="#ffffff" stroke-opacity=".07"/>
+<path d="M49 187L117 53h22l68 134h-33L128 94l-46 93z" fill="#000" opacity=".4" transform="translate(0 10)"/>
+<path d="M49 187L117 53h22l68 134h-33L128 94l-46 93z" fill="url(#side)" transform="translate(0 5)"/>
+<path d="M49 187L117 53h22l68 134h-33L128 94l-46 93z" fill="url(#metal)" stroke="#d6f4b1" stroke-opacity=".5"/>
+<path d="M117 53h22l-11 41z" fill="#f1ffda"/>
+<path d="M99 142h58l12 23H87z" fill="url(#side)" transform="translate(0 5)"/>
+<path d="M99 142h58l12 23H87z" fill="url(#metal)" stroke="#e1fbbd" stroke-opacity=".45"/>
+<path d="M54 210h148M54 205v10M202 205v10" fill="none" stroke="#abc3bd" stroke-width="2" opacity=".65"/>
+<path d="M52 76V52h25M179 52h24v25" fill="none" stroke="#cde8c2" stroke-width="2" opacity=".35"/></svg>
