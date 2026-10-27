@@ -6,6 +6,13 @@
 ## Téléchargement / Download
 Voir / see [Releases](https://github.com/Alcide-cad/Alcide/releases).
 
+### Windows SmartScreen
+Tant que la signature de code n'est pas active, Windows peut afficher « Windows a protégé votre ordinateur ». Cliquez sur **Informations complémentaires**, puis **Exécuter quand même**.
+
+Until code signing is active, Windows may show “Windows a protégé votre ordinateur”. Click **More info**, then **Run anyway**.
+
+![Diagramme SmartScreen : Informations complémentaires, puis Exécuter quand même](docs/windows-smartscreen.svg)
+
 ## Structure
 - `app/` — interface Electron (`main.cjs`, `index.html`, JS/CSS) et sources Python du moteur (`engine.py`, `dwg_export.py`, …)
 - `engine/` — `requirements.txt` et spec PyInstaller du moteur `alcide-engine`
