@@ -89,21 +89,55 @@ jobs:
           & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" installer/Alcide.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
 
-      # TODO: SignPath Foundation signing (once the project is accepted)
-      # - uses: actions/upload-artifact@v4
-      #   id: unsigned
-      #   with: { name: unsigned, path: dist/*.exe }
-      # - uses: signpath/github-action-submit-signing-request@v1
-      #   with:
-      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-      #     organization-id: '<SIGNPATH_ORG_ID>'
-      #     project-slug: 'alcide'
-      #     signing-policy-slug: 'release-signing'
-      #     github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
-      #     wait-for-completion: true
-      #     output-artifact-directory: dist-signed
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload unsigned installer
+        id: unsigned
+        uses: actions/upload-artifact@v4
         with:
           name: Installer-ALCIDE-${{ steps.ver.outputs.version }}-unsigned
           path: dist/*.exe
+
+      # Signs only tagged releases (v*) once SignPath vars and the API token exist.
+      - name: SignPath configuration
+        id: signpath
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_POLICY_SLUG: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          $missing = @(
+            $env:SIGNPATH_ORGANIZATION_ID,
+            $env:SIGNPATH_PROJECT_SLUG,
+            $env:SIGNPATH_POLICY_SLUG,
+            $env:SIGNPATH_API_TOKEN
+          ) | Where-Object { -not $_ }
+          if ($missing.Count -eq 0) {
+            "enabled=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "enabled=false" >> $env:GITHUB_OUTPUT
+            Write-Host "SignPath is not fully configured; the installer stays unsigned."
+          }
+
+      - name: Submit signing request (SignPath)
+        if: steps.signpath.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}          # e.g. alcide
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}    # e.g. release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          parameters: |
+            version: "${{ steps.ver.outputs.version }}"
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600   # manual approval per release
+          output-artifact-directory: dist-signed
+
+      - name: Upload signed installer
+        if: steps.signpath.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Installer-ALCIDE-${{ steps.ver.outputs.version }}
+          path: dist-signed/*.exe
