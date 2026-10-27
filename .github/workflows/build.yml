@@ -2,6 +2,7 @@ name: Build Windows installer
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 
@@ -59,7 +60,11 @@ jobs:
       - name: Build installer (Inno Setup)
         run: |
           choco install innosetup -y --no-progress
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" installer/Alcide.iss
+          if ($LASTEXITCODE -eq 3010) { $global:LASTEXITCODE = 0 }
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" installer/Alcide.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
 
       # TODO: SignPath Foundation signing (once the project is accepted)
       # - uses: actions/upload-artifact@v4
