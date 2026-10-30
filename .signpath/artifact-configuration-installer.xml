@@ -2,7 +2,7 @@
 <!-- Paste in SignPath > Project > Artifact configurations (slug: installer).
      upload-artifact@v4 wraps files in a ZIP, hence the zip-file root.
      ${version} is declared below and supplied by the GitHub Action parameters
-     input (the app version, e.g. 1.0.8). Inno Setup writes that string as
+     input (the app version, e.g. 1.0.11). Inno Setup writes that string as
      ProductVersion; the binary VersionInfoVersion is the same value plus .0. -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <parameters>

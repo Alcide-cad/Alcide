@@ -1344,14 +1344,14 @@ def apply_arrows(e,value):
     if e.has_xdata('ALCIDE_ARROWS'):e.discard_xdata('ALCIDE_ARROWS')
     if spec is None:return []
     e.set_xdata('ALCIDE_ARROWS',[(1000,json.dumps(spec))]);return add_arrow_heads(e,spec)
-def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None):
+def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False):
     # Work on a fresh copy; never mutate the source or the active document.
     from io import StringIO
     path=Path(filename)
     if path.suffix.lower() not in ('.dwg','.dxf'):raise ValueError('Choisissez DWG ou DXF.')
     if SOURCE and path.resolve()==Path(SOURCE).resolve():raise ValueError('Choisir un autre nom pour préserver le dessin source.')
     if path.suffix.lower()=='.dwg' and SOURCE and Path(SOURCE).suffix.lower()=='.dwg' and not any((changes,dimensions,edits,layer_changes,reinforcement)):
-        return {**dwg_export.copy_original(SOURCE,path),'dimensions':0}
+        return {**dwg_export.copy_original(SOURCE,path,backup=backup),'dimensions':0}
     if path.suffix.lower()=='.dwg' and SOURCE and Path(SOURCE).suffix.lower()=='.dwg':
         out=dwg_export.source_document(SOURCE)
     else:
@@ -1753,12 +1753,12 @@ def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforceme
     path=Path(filename)
     if path.suffix.lower()=='.dwg':
         for layer in final_locks:layer.lock()
-        return {**dwg_export.publish(out,path),'dimensions':len(dimensions)}
+        return {**dwg_export.publish(out,path,backup=backup),'dimensions':len(dimensions)}
     if SOURCE and path.resolve()==Path(SOURCE).resolve():raise ValueError('Choisir un autre nom pour préserver le dessin source.')
     for layer in final_locks:layer.lock()
     with tempfile.TemporaryDirectory(prefix='alcide-dxf-export-') as folder:
         temp=Path(folder)/'drawing.dxf';out.saveas(temp);check=ezdxf.readfile(temp)
-        check.audit();result=dwg_export.publish_file(temp,path)
+        check.audit();result=dwg_export.publish_file(temp,path,backup=backup)
     return dict(**result,entities=len(check.modelspace()),dimensions=len(dimensions),verified=True)
 
 def decompose_all(changes,dimensions,edits,layer_changes):
@@ -1828,6 +1828,12 @@ def dispatch(r):
         DOCUMENTS.pop(r['docId'],None)
         return True
     entry=activate(r.get('docId','default'))
+    if cmd=='freeze-source':
+        require_doc(full=True)
+        frozen=Path(r['path']).resolve()
+        if not frozen.is_file() or frozen.suffix.lower() not in ('.dwg','.dxf'):raise ValueError('Base de sauvegarde invalide.')
+        SOURCE=str(frozen);entry['source']=SOURCE
+        return SOURCE
     if cmd=='layers':return layer_info()
     if cmd in ('begin-block-edit','finish-block-edit'):
         target=block_editor.path('base' if cmd=='begin-block-edit' else 'definition')
@@ -1844,7 +1850,7 @@ def dispatch(r):
         cached=scene_path(entry['key'],r['layout'])
         if cached.exists():return dict(sceneFile=str(cached),cacheHit=True,docId=ACTIVE)
         value=scene(r['layout']);return dict(sceneFile=write_scene(value,entry['key']),cacheHit=False,docId=ACTIVE)
-    if cmd=='export':return export(r['path'],r.get('changes',{}),r.get('dimensions',[]),r.get('edits',{}),r.get('layerChanges',{}),r.get('reinforcement',[]))
+    if cmd=='export':return export(r['path'],r.get('changes',{}),r.get('dimensions',[]),r.get('edits',{}),r.get('layerChanges',{}),r.get('reinforcement',[]),backup=bool(r.get('backup',False)))
     raise ValueError('Commande inconnue : '+cmd)
 
 if __name__=='__main__':

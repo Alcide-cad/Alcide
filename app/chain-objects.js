@@ -22,8 +22,8 @@ function continueDimensionChain(point){
   if(groups.size)tree=buildTree([...items,...[...entities.values()].filter(e=>e.dimension)]);
  };
  const pickBase=pick;pick=function(p){const wp=world(p),radius=7/view.s;
-  for(const e of [...entities.values()].reverse())if(e.dimensionChain&&visible(e))for(const d of e.dimensionMembers){const box=dimensionLabelBoxes.get(d.id);if(box&&p[0]>=box[0]&&p[0]<=box[2]&&p[1]>=box[1]&&p[1]<=box[3])return e;const [a,b,c,end]=dimensionVertices(d);if([[a,c],[b,end],[c,end]].some(([v,u])=>segmentDistance(wp,v,u)<radius))return e;}
-  return pickBase(p);
+  const chains=window.overlayFeatureEntities?overlayFeatureEntities('chains'):[...entities.values()];for(let i=chains.length-1;i>=0;i--){const e=chains[i];if(e.dimensionChain&&visible(e))for(const d of e.dimensionMembers){const box=dimensionLabelBoxes.get(d.id);if(box&&p[0]>=box[0]&&p[0]<=box[2]&&p[1]>=box[1]&&p[1]<=box[3])return e;const [a,b,c,end]=dimensionVertices(d);if([[a,c],[b,end],[c,end]].some(([v,u])=>segmentDistance(wp,v,u)<radius))return e;}
+  }return pickBase(p);
  };
  const crosses=crossesSelection;crossesSelection=function(e,r){return e.dimensionChain?e.dimensionMembers.some(d=>crosses({...e,dimensionChain:null,dimension:d},r)):crosses(e,r);};
  const copy=copySelection;copySelection=function(dx,dy,ids=[...selected]){

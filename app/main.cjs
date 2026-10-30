@@ -49,7 +49,7 @@ app.whenReady().then(()=>{
  if(!ownsInstance)return;
  startWorker();
  const action=name=>()=>win?.webContents.send('menu-action',name);
- Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&Fichier',submenu:[{label:'&Nouveau dessin',accelerator:'Ctrl+N',click:action('new')},{label:'&Ouvrir…',accelerator:'Ctrl+O',click:action('open')},{type:'separator'},{label:'&Enregistrer le projet',accelerator:'Ctrl+S',click:action('save')},{label:'Enregistrer le projet &sous…',accelerator:'Ctrl+Shift+S',click:action('saveas')},{label:'Exporter en DWG / DXF…',accelerator:'Ctrl+E',click:action('export')},{label:'Charger un LISP…',click:action('lisp')},{type:'separator'},{label:'Fermer le dessin',accelerator:'Ctrl+W',click:action('close')},{label:'Quitter',accelerator:'Alt+F4',click:()=>win?.close()}]},{label:'&Édition',submenu:[{label:'Annuler',click:action('undo')},{label:'Rétablir',click:action('redo')},{type:'separator'},{label:'Paramètres…',click:action('settings')},{label:'Raccourcis clavier…',click:action('shortcuts')}]},{label:'&Aide',submenu:[{label:'Aide et version…',accelerator:'F1',click:action('help')},{label:'Diagnostic de compatibilité…',click:()=>openCompatibilityDiagnostic()}]}]));
+ Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&Fichier',submenu:[{label:'&Nouveau dessin',accelerator:'Ctrl+N',click:action('new')},{label:'&Ouvrir…',accelerator:'Ctrl+O',click:action('open')},{type:'separator'},{label:'&Enregistrer',accelerator:'Ctrl+S',click:action('save')},{label:'Enregistrer &sous…',accelerator:'Ctrl+Shift+S',click:action('saveas')},{label:'Enregistrer un projet ALCIDE…',click:action('saveproject')},{label:'Exporter en DXF…',accelerator:'Ctrl+E',click:action('export')},{label:'Charger un LISP…',click:action('lisp')},{type:'separator'},{label:'Fermer le dessin',accelerator:'Ctrl+W',click:action('close')},{label:'Quitter',accelerator:'Alt+F4',click:()=>win?.close()}]},{label:'&Édition',submenu:[{label:'Annuler',click:action('undo')},{label:'Rétablir',click:action('redo')},{type:'separator'},{label:'Paramètres…',click:action('settings')},{label:'Raccourcis clavier…',click:action('shortcuts')}]},{label:'&Aide',submenu:[{label:'Aide et version…',accelerator:'F1',click:action('help')},{label:'Diagnostic de compatibilité…',click:()=>openCompatibilityDiagnostic()}]}]));
  win=new BrowserWindow({width:1440,height:940,minWidth:1050,minHeight:680,title:'ALCIDE',icon:path.join(__dirname,'app-icon.ico'),backgroundColor:'#111820',autoHideMenuBar:false,webPreferences:{backgroundThrottling:false,preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  win.setMenuBarVisibility(false);
  if(detachedInitial)win.once('ready-to-show',()=>{if(!win?.isDestroyed()){if(win.isMinimized())win.restore();win.show();win.focus();}});
@@ -79,15 +79,37 @@ ipcMain.handle('read-lisp',(_,p)=>fs.readFileSync(validateFile(p,['.lsp']),'utf8
 ipcMain.handle('choose-lisp',async()=>{const r=await dialog.showOpenDialog(win,{title:'Charger un fichier AutoLISP',buttonLabel:'Charger',filters:[{name:'AutoLISP',extensions:['lsp']}],properties:['openFile']});return r.canceled?null:r.filePaths[0];});
 ipcMain.handle('save-project',async(_,data)=>{const source=sources.get(data.docId);if(!source)throw Error('Dessin fermé ou inconnu.');const {docId,projectPath,saveAs,...saved}=data;let target=projectPath;if(target&&path.extname(target).toLowerCase()!=='.alcide')throw Error('Enregistrer le projet demande un fichier .alcide.');if(saveAs||!target){const r=await dialog.showSaveDialog(win,{title:saveAs?'Enregistrer le projet sous…':'Enregistrer le projet',buttonLabel:'Enregistrer',defaultPath:dialogSavePath(target||(newDrawingSources.has(source)?path.join(app.getPath('documents'),'Dessin sans titre.alcide'):source.replace(/\.[^.]+$/,'.alcide'))),filters:[{name:'Projet ALCIDE',extensions:['alcide']}]});if(r.canceled)return null;target=r.filePath;if(path.extname(target).toLowerCase()!=='.alcide')target+='.alcide';}target=path.resolve(target);const tmp=target+'.'+Date.now()+'.tmp';try{fs.writeFileSync(tmp,JSON.stringify({format:'DWG-Alcide',version:1,source,...saved},null,2),'utf8');fs.renameSync(tmp,target);}finally{if(fs.existsSync(tmp))fs.unlinkSync(tmp);}rememberDialogFolder(target);return target;});
 ipcMain.handle('read-project',(_,p)=>{const data=JSON.parse(fs.readFileSync(validateFile(p,['.alcide']),'utf8'));if(data.format!=='DWG-Alcide'||data.version!==1)throw new Error('Projet Alcide non reconnu.');return data;});
-ipcMain.handle('export',async(_,data)=>{
- const source=sources.get(data.docId),r=await dialog.showSaveDialog(win,{title:'Enregistrer une copie du dessin',buttonLabel:'Enregistrer',defaultPath:dialogSavePath(source?(newDrawingSources.has(source)?path.join(app.getPath('documents'),'Dessin sans titre.dwg'):source.replace(/\.[^.]+$/,'-Alcide.dwg')):'Dessin-Alcide.dwg'),filters:[{name:'Dessin DWG 2018',extensions:['dwg']},{name:'Dessin DXF',extensions:['dxf']}]});if(r.canceled)return null;
- try{const target=path.extname(r.filePath)?r.filePath:r.filePath+'.dwg',result=await request({cmd:'export',...data,path:target});
-  if(!result?.path||!fs.statSync(result.path).isFile()||fs.statSync(result.path).size===0)throw Error('Le fichier exporté est absent ou vide.');
-  rememberDialogFolder(result.recovery?result.requestedPath:result.path);const choice=await dialog.showMessageBox(win,{type:result.recovery?'warning':'info',title:result.recovery?'Copie locale de secours':'Dessin enregistré',message:result.recovery?'Le dossier demandé refuse l’écriture. Une copie vérifiée a été enregistrée sur cet ordinateur.':'La copie du dessin a été enregistrée et vérifiée.',detail:(result.recovery?'Destination demandée : '+result.requestedPath+'\n\nCopie disponible : ':'')+result.path+'\n\nOuvrez cette copie pour travailler sous le nouveau nom. Le dessin d’origine est conservé.',buttons:['Ouvrir la copie','Afficher le dossier','Fermer'],defaultId:0,cancelId:2});
-  if(choice.response===1)shell.showItemInFolder(result.path);return {...result,openCopy:choice.response===0};
- }catch(error){await dialog.showMessageBox(win,{type:'error',title:'Export impossible',message:'Le dessin n’a pas été exporté.',detail:error.message,buttons:['Fermer']});throw error;}
-});
-ipcMain.handle('confirm-close',async()=>{const r=await dialog.showMessageBox(win,{type:'question',buttons:['Annuler','Continuer'],defaultId:0,cancelId:0,message:'Des modifications ne sont pas enregistrées.',detail:'Enregistre un projet Alcide ou exporte un DXF pour conserver les transparences et les cotes.'});return r.response===1;});
+// DWG save and DXF export share one verified publisher; no legacy post-export dialog.
+const frozenSaveSources=new Set();
+async function freezeSaveSource(docId){
+ const source=sources.get(docId);if(!source)throw Error('Dessin fermé ou inconnu.');
+ if(frozenSaveSources.has(docId))return source;
+ const baselineParent=path.join(app.getPath('userData'),'save-baselines'),root=path.join(baselineParent,require('crypto').randomUUID());fs.mkdirSync(root,{recursive:true});
+ const frozen=path.join(root,path.basename(source));fs.copyFileSync(source,frozen);
+ try{await request({cmd:'freeze-source',docId,path:frozen});}catch(error){if(path.dirname(path.resolve(root))===path.resolve(baselineParent))fs.rmSync(root,{recursive:true,force:true});throw error;}
+ sources.set(docId,frozen);frozenSaveSources.add(docId);return frozen;
+}
+async function saveDrawing(data,dxf=false){
+ const source=sources.get(data.docId);if(!source)throw Error('Dessin fermé ou inconnu.');
+ const current=data.drawingPath&&path.extname(data.drawingPath).toLowerCase()==='.dwg'?path.resolve(data.drawingPath):null;
+ let target=!dxf&&!data.saveAs?current:null;
+ if(!target){const ext=dxf?'dxf':'dwg',suggested=current||data.suggestedPath||source;const suggestedName=cleanSuggestedName(suggested).replace(/\.[^.]+$/,'.'+ext);
+  const result=await dialog.showSaveDialog(win,{title:dxf?'Exporter en DXF':'Enregistrer sous',buttonLabel:'Enregistrer',defaultPath:dialogSavePath(newDrawingSources.has(source)?'Dessin sans titre.'+ext:suggestedName),filters:[{name:dxf?'Dessin DXF':'Dessin DWG 2018',extensions:[ext]}],properties:['showOverwriteConfirmation']});
+  if(result.canceled)return null;target=result.filePath;if(!path.extname(target))target+='.'+ext;
+ }
+ target=path.resolve(target);if(path.extname(target).toLowerCase()!==(dxf?'.dxf':'.dwg'))throw Error(dxf?'Choisissez un fichier .dxf.':'Choisissez un fichier .dwg.');
+ // Freeze every affected base before replacing a source opened in this session.
+ await freezeSaveSource(data.docId);
+ for(const [id,original] of sources)if(id!==data.docId&&path.resolve(original).toLowerCase()===target.toLowerCase())await freezeSaveSource(id);
+ const result=await request({cmd:'export',...data,path:target,backup:!dxf});
+ if(!result?.path||!result.verified||!fs.statSync(result.path).isFile()||!fs.statSync(result.path).size)throw Error('Le dessin enregistré est absent ou non vérifié.');
+ rememberDialogFolder(result.recovery?result.requestedPath:result.path);
+ if(result.recovery)await dialog.showMessageBox(win,{type:'warning',title:'Copie locale de secours',message:'Le dossier demandé refuse l’écriture. Le fichier précédent est conservé.',detail:'Une copie vérifiée est disponible ici : '+result.path,buttons:['Fermer']});
+ return {...result,sourceBase:sources.get(data.docId)};
+}
+ipcMain.handle('save-drawing',(_,data)=>saveDrawing(data));
+ipcMain.handle('export-dxf',(_,data)=>saveDrawing(data,true));
+ipcMain.handle('confirm-close',async()=>{const r=await dialog.showMessageBox(win,{type:'question',buttons:['Annuler','Continuer'],defaultId:0,cancelId:0,message:'Des modifications ne sont pas enregistrées.',detail:'Enregistrez le dessin DWG ou un projet ALCIDE pour conserver votre travail.'});return r.response===1;});
 app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>worker?.kill());
 
 

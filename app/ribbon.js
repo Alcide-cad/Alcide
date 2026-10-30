@@ -5,7 +5,7 @@
  const tabbar=document.createElement('div');tabbar.className='ribbon-tabs';tabbar.setAttribute('role','tablist');tabbar.setAttribute('aria-label','Catégories du ruban');
  const content=document.createElement('div');content.id='ribboncontent';shell.append(tabbar,content);oldnav.before(shell);
  const categories=[
-  ['fichier','Fichier',[['Dessins',['open','project','saveas','export']],['Automatisation',['lisp']]]],
+  ['fichier','Fichier',[['Dessins',['open','project','saveas','project-alcide','export']],['Automatisation',['lisp']]]],
   ['accueil','Accueil',[['Sélection',['select']],['Modifier',['move','copy','hide','delete','undo','redo']],['Position',[]],['Similaires',[]],['Précision',['snap','ortho']]]],
   ['mesures','Annotations',[['Mesurer et annoter',['measure','dimension']],['Réglages',[]],['Textes',[]],['Chaînes de cotes',[]]]],
   ['outils','Outils',[]],
@@ -27,7 +27,7 @@
    if(title==='Organisation'){extra(tools,'Calques',()=>{setLayerPanelVisible(true);$('#layerfilter').scrollIntoView({block:'nearest'});});extra(tools,'Réafficher les éléments',()=>showAll());}
   }
  }
- const icons={open:'▱',project:'▣',saveas:'▣',export:'↗',lisp:'λ',select:'↖',move:'✥',copy:'▣',hide:'◌',delete:'⌫',undo:'↶',redo:'↷',measure:'↔',dimension:'⊣',fit:'⌗',cache:'▤',help:'?'};
+ const icons={open:'▱',project:'▣','project-alcide':'▣',saveas:'▣',export:'↗',lisp:'λ',select:'↖',move:'✥',copy:'▣',hide:'◌',delete:'⌫',undo:'↶',redo:'↷',measure:'↔',dimension:'⊣',fit:'⌗',cache:'▤',help:'?'};
  for(const b of content.querySelectorAll('button')){const icon=document.createElement('span');icon.className='ribbon-icon';icon.setAttribute('aria-hidden','true');icon.textContent=b.dataset.icon||icons[b.id]||'◎';const label=document.createElement('span');label.textContent=b.id==='undo'?'Annuler':b.id==='help'?'Aide':b.textContent.replace(/^[↖↔⊣✥◌⌫⌗◎]\s*/, '');b.replaceChildren(icon,label);b.classList.add('ribbon-button');}
  window.activateRibbon=activate;const panelToggle=$('#togglepanel');header.append(panelToggle);oldnav.remove();
  const controls=document.createElement('div');controls.className='ribbon-fold';controls.setAttribute('aria-label','Afficher ou replier le ruban');

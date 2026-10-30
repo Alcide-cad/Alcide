@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('alcide',{compatibilityDiagnostic:()=>ipcRendere
  textPreview:(id,requests)=>ipcRenderer.invoke('text-preview',id,requests),fonts:()=>ipcRenderer.invoke('fonts'),
  cacheInfo:()=>ipcRenderer.invoke('cache-info'),clearCache:()=>ipcRenderer.invoke('clear-cache'),
  saveProject:d=>ipcRenderer.invoke('save-project',d),readProject:p=>ipcRenderer.invoke('read-project',p),
- export:d=>ipcRenderer.invoke('export',d),confirmClose:()=>ipcRenderer.invoke('confirm-close'),
+ saveDrawing:d=>ipcRenderer.invoke('save-drawing',d),exportDxf:d=>ipcRenderer.invoke('export-dxf',d),confirmClose:()=>ipcRenderer.invoke('confirm-close'),
  onAction:cb=>ipcRenderer.on('menu-action',(_,action)=>cb(action)),
  filePath:f=>webUtils.getPathForFile(f),onInitial:cb=>ipcRenderer.on('initial-file',(_,p)=>cb(p)),onProgress:cb=>ipcRenderer.on('load-progress',(_,data)=>cb(data))
 });

@@ -123,23 +123,27 @@ def equivalent(a,b):
     if isinstance(a,(list,tuple)) and isinstance(b,(list,tuple)):return len(a)==len(b) and all(equivalent(x,y) for x,y in zip(a,b))
     return a==b
 
-def _write_verified_file(source,path):
+def _write_verified_file(source,path,backup=False):
     """Use one open handle, a normal non-DWG name, then atomic replacement."""
     source,path=Path(source),Path(path)
     fd,staged=tempfile.mkstemp(prefix='ALCIDE-export-',suffix='.tmp',dir=path.parent)
     try:
         with os.fdopen(fd,'wb') as target,source.open('rb') as stream:
             shutil.copyfileobj(stream,target,1024*1024);target.flush();os.fsync(target.fileno())
+        if backup and path.exists():
+            # The candidate is already verified. Keep the old bytes before replacement.
+            backup_path=path.with_name(path.name+'.bak')
+            _write_verified_file(path,backup_path)
         os.replace(staged,path)
     finally:
         try:os.unlink(staged)
         except FileNotFoundError:pass
 
-def publish_file(source,path):
+def publish_file(source,path,backup=False):
     """Never lose a locally verified drawing when a share rejects publication."""
     source,path=Path(source),Path(path)
     try:
-        _write_verified_file(source,path)
+        _write_verified_file(source,path,backup=backup)
         return {'path':str(path)}
     except OSError as error:
         root=Path(os.environ.get('LOCALAPPDATA',tempfile.gettempdir()))/'DWG-Alcide'/'exports-secours'
@@ -148,7 +152,7 @@ def publish_file(source,path):
         _write_verified_file(source,recovery)
         return {'path':str(recovery),'requestedPath':str(path),'recovery':True,'publicationError':str(error)}
 
-def copy_original(source,path):
+def copy_original(source,path,backup=False):
     """An unmodified Save Copy preserves every original DWG byte."""
     source,path=Path(source),Path(path)
     if source.resolve()==path.resolve():raise ValueError('Choisir un autre nom pour préserver le dessin source.')
@@ -162,12 +166,12 @@ def copy_original(source,path):
     with tempfile.TemporaryDirectory(prefix='alcide-source-copy-') as folder:
         local=Path(folder)/'drawing.dwg';shutil.copyfile(source,local)
         if digest(source)!=digest(local):raise ValueError('La copie du DWG a échoué à la vérification.')
-        result=publish_file(local,path)
+        result=publish_file(local,path,backup=backup)
     return dict(**result,format='DWG',version=header.decode('ascii'),verified=True,sourceCopy=True)
 
 
 
-def publish(doc,path):
+def publish(doc,path,backup=False):
     path=Path(path);converter()
     with tempfile.TemporaryDirectory(prefix='alcide-export-') as folder:
         root=Path(folder);dxf=root/'drawing.dxf';dwg=root/'drawing.dwg';checkfile=root/'check.dxf'
@@ -185,5 +189,5 @@ def publish(doc,path):
         actual=fingerprint(check)
         for key in expected:
             if not equivalent(expected[key],actual[key]):raise ValueError('Export DWG annulé : différence détectée lors du contrôle de '+key+'. Le fichier précédent est conservé.')
-        result=publish_file(dwg,path)
+        result=publish_file(dwg,path,backup=backup)
         return dict(**result,format='DWG',version='2018',entities=sum(len(l) for l in check.layouts),layouts=list(actual['layouts']),verified=True)
