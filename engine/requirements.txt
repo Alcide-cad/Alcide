@@ -2,6 +2,10 @@ ezdxf==1.4.5
 numpy==2.2.6
 shapely==2.1.2
 pillow==12.3.0
-orjson
-fonttools
-pyinstaller
+orjson==3.13.0
+fonttools==4.65.0
+# PDF import (1.0.17): pdfminer.six (MIT) and its runtime deps
+pdfminer.six==20260107
+cryptography==50.0.2
+charset-normalizer==3.5.2
+pyinstaller==6.22.3

@@ -1,0 +1,27 @@
+/* Compact vertical rhythm; preserve labels and all commands. */
+#ribbon .ribbon-tabs{min-height:30px!important;padding-top:0!important;padding-bottom:0!important;align-items:center!important}
+#ribbon .ribbon-tabs button{min-height:28px!important;height:28px!important;padding-top:3px!important;padding-bottom:3px!important;font-size:12px!important}
+#ribbon .ribbon-fold{top:2px!important}
+#ribbon #ribboncontent.ribbon103,#ribbon #ribboncontent.ribbon103 .ribbon-page{height:84px!important;min-height:84px!important;max-height:84px!important}
+#ribbon #ribboncontent.ribbon103 .ribbon-page{padding-top:2px!important;padding-bottom:2px!important}
+#ribbon #ribboncontent.ribbon103 .ribbon-group{gap:2px!important}
+#ribbon #ribboncontent.ribbon103 .ribbon-group>small{font-size:10px!important;line-height:11px!important;margin:0!important}
+#ribbon #ribboncontent.ribbon103 .ribbon-group:not(.rf-collapsed)>:is(.ribbon-tools,.rebar-command-tools){grid-template-rows:repeat(2,32px)!important;height:66px!important;min-height:66px!important;max-height:66px!important;gap:2px!important}
+#tabs{min-height:33px!important;height:33px!important;padding-top:2px!important;padding-bottom:0!important}
+#tabs .tab{padding-top:4px!important;padding-bottom:4px!important;height:30px!important;min-height:30px!important;box-sizing:border-box!important}
+
+/* Top strip: 24 px total, including permanent actions. */
+#ribbon .ribbon-topbar{height:24px!important;min-height:24px!important;max-height:24px!important;padding-top:0!important;padding-bottom:0!important;align-items:center!important;box-sizing:border-box!important}
+#ribbon .ribbon-topbar>.ribbon-tabs,#ribbon .ribbon-topbar>.ribbon-fold,#ribbon .ribbon-topbar>.ribbon-quick-access{height:24px!important;min-height:24px!important;max-height:24px!important;padding-top:0!important;padding-bottom:0!important;align-items:center!important;box-sizing:border-box!important}
+#ribbon .ribbon-topbar button{height:22px!important;min-height:22px!important;max-height:22px!important;padding-top:1px!important;padding-bottom:1px!important;line-height:18px!important;font-size:11px!important;box-sizing:border-box!important}
+#ribbon .ribbon-topbar .ribbon-tabs button{border-bottom-width:2px!important}
+#ribbon .ribbon-topbar .ribbon-fold{position:static!important}
+#ribbon .ribbon-topbar .ribbon-fold button{padding-left:7px!important;padding-right:7px!important}
+#ribbon .ribbon-topbar .ribbon-quick-access button{padding:2px!important}
+#ribbon .ribbon-topbar .ribbon-fold label{margin-top:0!important;margin-bottom:0!important;line-height:18px!important;font-size:10px!important}
+#ribbon .ribbon-topbar svg{max-height:17px!important}
+
+/* Document tabs: 10 px less; no clipped label or close control. */
+#tabs{height:23px!important;min-height:23px!important;max-height:23px!important;padding:0 10px!important;align-items:stretch;scrollbar-width:thin}
+#tabs .tab{height:22px!important;min-height:22px!important;max-height:22px!important;margin:1px 0 0!important;padding:1px 8px!important;gap:8px!important;font-size:11px!important;line-height:18px!important;border-radius:5px 5px 0 0!important;flex-shrink:0}
+#tabs .tab .tabclose{height:20px!important;min-height:20px!important;max-height:20px!important;min-width:22px!important;padding:0 3px!important;font-size:17px!important;line-height:18px!important;flex-shrink:0}

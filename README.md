@@ -17,7 +17,7 @@ Until code signing is active, Windows may show “Windows a protégé votre ordi
 - `app/` — interface Electron (`main.cjs`, `index.html`, JS/CSS) et sources Python du moteur (`engine.py`, `dwg_export.py`, …)
 - `engine/` — `requirements.txt` et spec PyInstaller du moteur `alcide-engine`
 - `installer/` — script Inno Setup et images
-- `third_party/` — récupération de LibreDWG et liste des licences tierces
+- `third_party/` — récupération de LibreDWG et Poppler (import PDF) et liste des licences tierces
 - `.github/workflows/build.yml` — compilation automatique de l'installeur
 - `.signpath/` — configuration d'artefact SignPath (installeur)
 - [PRIVACY.md](PRIVACY.md) — déclaration de confidentialité / privacy policy

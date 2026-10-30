@@ -14,6 +14,12 @@ tmp_ret = collect_all('PIL')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 # fontTools.ttLib loads table modules dynamically (fontTools.ttLib.tables.*).
 hiddenimports += collect_submodules('fontTools')
+# PDF import (1.0.17): pdfminer.six ships CMap data files; engine.py imports the PDF modules lazily.
+tmp_ret = collect_all('pdfminer')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+hiddenimports += ['pdf_vector_import', 'pdf_gpl_backend']
+# MuPDF/PyMuPDF (AGPL) must never be bundled; ezdxf has an optional adapter for it.
+excludes = ['fitz', 'pymupdf', 'pymupdf4llm', 'ezdxf.addons.drawing.pymupdf']
 
 
 a = Analysis(
@@ -25,7 +31,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=excludes,
     noarchive=False,
     optimize=0,
 )

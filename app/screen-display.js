@@ -5,7 +5,7 @@
  const isAid=e=>{const p=edits[e?.id]?.props;return p?.constructionAid!==undefined?!!p.constructionAid:String(p?.layer||e?.layer||'').startsWith(prefix);};
  function family(e){if(e.rebar)return e.rebar.model.kind==='mesh'?'ts':'ha';if(e.dimension||e.dimensionChain||e.nativeDimension||e.type==='DIMENSION')return 'dimensions';if(e.annotation||e.nativeText||['TEXT','MTEXT','ATTRIB'].includes(e.type))return 'text';if(e.type==='IMAGE'||e.type==='OLE2FRAME'||edits[e.id]?.drawing?.image)return 'images';if(e.type==='HATCH')return (edits[e.id]?.hatchStyle?.pattern||e.pattern||e.tags?.['2'])==='SOLID'?'fills':'hatches';if(['SOLID','TRACE'].includes(e.type))return 'fills';if(edits[e.id]?.props?.fillOnly)return edits[e.id].props.fillPattern==='SOLID'?'fills':'hatches';return null;}
  const eligible=e=>!!e&&!e.rebar&&!e.rebarTable&&!e.dimensionChain;
- const aidAllowed=()=>window.Theme09?.current()==='paper'?options.paperAids:options.aids;
+ const aidAllowed=()=>window.Theme09?.current()?.startsWith('paper')?options.paperAids:options.aids;
  function shown(e){if(bypass)return true;if(aidPresence&&isAid(e)&&!aidAllowed())return false;if(!filtered)return true;const f=family(e);return !f||options[f]!==false;}
  const vis=visible;visible=function(e){return vis(e)&&shown(e);};
  const pv=primitiveVisible;primitiveVisible=function(e,p){if(!pv(e,p))return false;if(bypass||!surfaceFilters)return true;if(p.detailKind==='text'&&!e.nativeDimension&&!options.text)return false;if(p.detailKind==='hatch'&&!options.hatches&&!p.fill)return false;if(p.drawingFill||p.hatchBackground){const f=edits[e.id]?.props?.fillPattern&&edits[e.id].props.fillPattern!=='SOLID'?'hatches':'fills';return options[f]!==false;}return true;};

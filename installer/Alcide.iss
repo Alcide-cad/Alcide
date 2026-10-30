@@ -1,5 +1,5 @@
 ﻿#ifndef AppVersion
-#define AppVersion "1.0.11"
+#define AppVersion "1.0.17"
 #endif
 #ifndef OutDir
 #define OutDir SourcePath + "..\dist"
@@ -51,7 +51,7 @@ french.FinishedLabel=Votre atelier est installé.%n%nOrientez la souris, tapez l
 [Tasks]
 Name: "desktopicon"; Description: "Créer un raccourci ALCIDE sur le Bureau"; GroupDescription: "Raccourcis :"
 [Files]
-Source: "{#AppSource}\*"; DestDir: "{app}"; Excludes: "debug.log,unins*.exe,unins*.dat,HISTORIQUE-technique-avant-0.8.txt,validation-*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AppSource}\*"; DestDir: "{app}"; Excludes: "debug.log,unins*.exe,unins*.dat,HISTORIQUE-technique-avant-0.8.txt,validation-*,__pycache__,*\__pycache__\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Registry]
 Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "ALCIDE"; ValueData: "Software\ALCIDE\Capabilities"; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\ALCIDE\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "ALCIDE"; Flags: uninsdeletekey
@@ -82,6 +82,9 @@ Type: files; Name: "{app}\DWG-Alcide.exe"
 Type: files; Name: "{userdesktop}\DWG-Alcide\DWG-Alcide.lnk"
 Type: files; Name: "{userprograms}\DWG-Alcide\DWG-Alcide.lnk"
 Type: files; Name: "{userdesktop}\ALCIDE\ALCIDE.lnk"
+; Old PyMuPDF (AGPL) notices from pre-1.0.17 local builds; the old engine folder is removed above.
+Type: files; Name: "{app}\resources\app\LICENSE-PyMuPDF-AGPL-3.0.txt"
+Type: files; Name: "{app}\Sources\LICENSE-PyMuPDF-AGPL-3.0.txt"
 
 [Icons]
 Name: "{group}\ALCIDE"; Filename: "{app}\ALCIDE.exe"; WorkingDir: "{app}"; IconFilename: "{app}\resources\app\app-icon.ico"; AppUserModelID: "NicolasScherer.ALCIDE"

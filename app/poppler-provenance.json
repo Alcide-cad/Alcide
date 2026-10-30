@@ -1,0 +1,23 @@
+{
+  "popplerVersion": "26.09.0",
+  "windowsArchive": {
+    "url": "https://github.com/oschwartz10612/poppler-windows/releases/download/v26.09.0-0/Release-26.09.0-0.zip",
+    "sha256": "7a6f256a0ddf7536182246a5733331bf4677cbcc34f4663774947ad34556c8d0"
+  },
+  "upstreamSource": {
+    "url": "https://poppler.freedesktop.org/poppler-26.09.0.tar.xz",
+    "sha256": "8059eadb6805340768f138c465b57f8164c92b4a0773c37ef031ea6c0d987b2e"
+  },
+  "pythonVersions": {
+    "ezdxf": "1.4.5",
+    "shapely": "2.1.2",
+    "fonttools": "4.65.0",
+    "orjson": "3.13.0",
+    "numpy": "2.2.6",
+    "pillow": "12.3.0",
+    "pdfminer.six": "20260107",
+    "cryptography": "50.0.2",
+    "charset-normalizer": "3.5.2",
+    "pyinstaller": "6.22.3"
+  }
+}

@@ -1166,6 +1166,8 @@ def apply_hatch_geometry(e,operations):
             if len(pivot)!=2 or not all(math.isfinite(float(v)) for v in [*pivot,angle,dx,dy]):raise ValueError('Repère de hachure incorrect.')
             c=math.cos(math.radians(angle));s=math.sin(math.radians(angle));world_delta=list(delta)
             for mirror in reversed(space.get('mirrors',[])):
+                if 'scale' in mirror:
+                    world_delta=[v/float(mirror['scale']) for v in world_delta];continue
                 a=mirror['a'];b=mirror['b'];angle=math.atan2(b[1]-a[1],b[0]-a[0]);co=math.cos(2*angle);si=math.sin(2*angle)
                 world_delta=[co*world_delta[0]+si*world_delta[1],si*world_delta[0]-co*world_delta[1]]
             local_delta=(c*world_delta[0]+s*world_delta[1],-s*world_delta[0]+c*world_delta[1])
@@ -1176,6 +1178,8 @@ def apply_hatch_geometry(e,operations):
             else:test=p;move=delta
             if space:
                 for mirror in space.get('mirrors',[]):
+                    if 'scale' in mirror:
+                        origin=mirror['a'];factor=float(mirror['scale']);test=tuple(origin[i]+(test[i]-origin[i])*factor for i in range(2));continue
                     a=mirror['a'];b=mirror['b'];vx=b[0]-a[0];vy=b[1]-a[1];length=vx*vx+vy*vy
                     if length<1e-12:raise ValueError('Axe de miroir incorrect.')
                     t=((test[0]-a[0])*vx+(test[1]-a[1])*vy)/length
@@ -1577,6 +1581,11 @@ def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforceme
         if dx or dy:e.translate(float(dx),float(dy),0)
         for mirror in edit.get('nativeMirrorOps',[]):
             from ezdxf.math import Matrix44
+            if 'scale' in mirror:
+                pivot=mirror['a'];factor=float(mirror['scale'])
+                if len(pivot)!=2 or not all(math.isfinite(float(v)) for v in pivot) or not math.isfinite(factor) or factor<=0:raise ValueError('Mise à l’échelle incorrecte.')
+                e.transform(Matrix44.chain(Matrix44.translate(-float(pivot[0]),-float(pivot[1]),0),Matrix44.scale(factor),Matrix44.translate(float(pivot[0]),float(pivot[1]),0)))
+                continue
             a=mirror['a'];b=mirror['b'];values=[*a,*b]
             if len(a)!=2 or len(b)!=2 or not all(math.isfinite(float(v)) for v in values):raise ValueError('Axe de miroir incorrect.')
             angle=math.atan2(b[1]-a[1],b[0]-a[0])
@@ -1807,6 +1816,11 @@ def dispatch(r):
     global DOC,SOURCE,WARNINGS,ACTIVE
     cmd=r['cmd']
     if cmd=='engine-info':return dict(python=sys.version,nativeGeometry=ezdxf.options.use_c_ext,engineVersion='0.6.0')
+    if cmd in ('pdf-info','pdf-preview','pdf-import'):
+        import pdf_vector_import
+        if cmd=='pdf-info':return pdf_vector_import.info(r['path'])
+        if cmd=='pdf-preview':return pdf_vector_import.preview(r['path'],int(r.get('page',0)))
+        return pdf_vector_import.convert(r['path'],r['target'],page=int(r.get('page',0)),scale=r.get('scale',1),unit=r.get('unit','cm'),include_hidden=bool(r.get('includeHidden',True)))
     if cmd=='new-drawing':
         target=Path(r['path']);target.parent.mkdir(parents=True,exist_ok=True)
         if target.exists():raise ValueError('Le dessin existe déjà.')

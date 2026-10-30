@@ -3,7 +3,7 @@
  let pending=Promise.resolve();
  function vertices(e,state){const edit=state[e.id]||{},ps=edit.geometry?.points||edit.drawing?.points||e.originalSnap||e.snap;return ps?.map(p=>[p[0]+(edit.dx||0),p[1]+(edit.dy||0)])||[];}
  function closed(e,state){const edit=state[e.id]||{};return e.type==='LWPOLYLINE'&&(edit.geometry?.closed??edit.drawing?.closed??e.shape?.[0]);}
- function local(p,edit){let q=[p[0]-(edit.dx||0),p[1]-(edit.dy||0)];for(const op of [...(edit.nativeMirrorOps||[])].reverse())q=nativeMirrorPoint(q,[op]);if(edit.rotation)q=gripRotatePoint(q,edit.rotation.pivot,-edit.rotation.angle);return q;}
+ function local(p,edit){let q=[p[0]-(edit.dx||0),p[1]-(edit.dy||0)];for(const op of [...(edit.nativeMirrorOps||[])].reverse())q=nativeMirrorPoint(q,[op.scale?{...op,scale:1/op.scale}:op]);if(edit.rotation)q=gripRotatePoint(q,edit.rotation.pivot,-edit.rotation.angle);return q;}
  function preserveHoles(oldEdit,nextPoints){const props=oldEdit.props||{},holes=props.fillHoles||[],ref=props.fillReference||oldEdit.drawing?.points,ps=oldEdit.geometry?.points||oldEdit.drawing?.points;if(!holes.length||!ref?.[1]||!ps?.[1])return holes;
  const similarity=(from,to)=>{const a=from[0],b=from[1],c=to[0],d=to[1],x=b[0]-a[0],y=b[1]-a[1],den=x*x+y*y;if(den<1e-16)return null;const co=((d[0]-c[0])*x+(d[1]-c[1])*y)/den,si=((d[1]-c[1])*x-(d[0]-c[0])*y)/den;return p=>[c[0]+co*(p[0]-a[0])-si*(p[1]-a[1]),c[1]+si*(p[0]-a[0])+co*(p[1]-a[1])];};
  const previous=similarity(ref,ps),current=previous?holes.map(r=>r.map(previous)):holes,transform=nextPoints?.length===ps.length?similarity(ps,nextPoints):null;

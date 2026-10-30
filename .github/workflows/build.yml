@@ -71,6 +71,12 @@ jobs:
       - name: Fetch LibreDWG
         run: ./third_party/fetch-libredwg.ps1 -Dest build/runtime/resources/app/engine/dwg
 
+      - name: Fetch Poppler (PDF import)
+        run: ./third_party/fetch-poppler.ps1 -Dest build/runtime/resources/app/engine/poppler
+
+      - name: Smoke-test PDF import (pdfminer + Poppler)
+        run: python .github/scripts/smoke_pdf.py build/runtime/resources/app/engine/alcide-engine.exe build/pdf-smoke
+
       - name: Set ALCIDE.exe icon and metadata
         run: |
           # npm package rcedit@4 is a library with no CLI; use the electron/rcedit binary it wraps.

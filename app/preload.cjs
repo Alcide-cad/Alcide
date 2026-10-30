@@ -1,5 +1,5 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
-contextBridge.exposeInMainWorld('alcide',{compatibilityDiagnostic:()=>ipcRenderer.invoke('compatibility-diagnostic'),recoverySnapshot:data=>ipcRenderer.invoke('recovery09-snapshot',data),recoveryList:()=>ipcRenderer.invoke('recovery09-list'),version:()=>ipcRenderer.invoke('app-version'),
+contextBridge.exposeInMainWorld('alcide',{checkUpdates:force=>ipcRenderer.invoke('updates121-check',force),downloadUpdate:()=>ipcRenderer.invoke('updates121-download'),printPaper:data=>ipcRenderer.invoke('print-paper116',data),compatibilityDiagnostic:()=>ipcRenderer.invoke('compatibility-diagnostic'),recoverySnapshot:data=>ipcRenderer.invoke('recovery09-snapshot',data),recoveryList:()=>ipcRenderer.invoke('recovery09-list'),version:()=>ipcRenderer.invoke('app-version'),
  exportDetailLibrary:d=>ipcRenderer.invoke('detail-library-export',d),importDetailLibrary:()=>ipcRenderer.invoke('detail-library-import'),
  recentFiles:()=>ipcRenderer.invoke('recent-files'),rememberRecent:p=>ipcRenderer.invoke('remember-recent',p),clearRecent:()=>ipcRenderer.invoke('clear-recent'),
  detachedBootstrap:()=>ipcRenderer.sendSync('detached-bootstrap'),
@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('alcide',{compatibilityDiagnostic:()=>ipcRendere
  toggleMenu:()=>ipcRenderer.send('toggle-menu'),
  markMenuAltUsed:()=>ipcRenderer.send('menu-alt-used'),
  newDrawing:()=>ipcRenderer.invoke('new-drawing'),
+ choosePdf:()=>ipcRenderer.invoke('choose-pdf'),pdfInfo:p=>ipcRenderer.invoke('pdf-info',p),pdfPreview:(p,page)=>ipcRenderer.invoke('pdf-preview',p,page),importPdf:d=>ipcRenderer.invoke('pdf-import',d),
  chooseOpen:()=>ipcRenderer.invoke('choose-open'),open:(p,id)=>ipcRenderer.invoke('open-drawing',p,id),
  layout:(n,id)=>ipcRenderer.invoke('layout',n,id),close:id=>ipcRenderer.invoke('close-drawing',id),readLisp:p=>ipcRenderer.invoke('read-lisp',p),chooseLisp:()=>ipcRenderer.invoke('choose-lisp'),
  beginBlockEdit:data=>ipcRenderer.invoke('begin-block-edit',data),

@@ -1,0 +1,10 @@
+ezdxf==1.4.5
+shapely==2.1.2
+fonttools==4.65.0
+orjson==3.13.0
+numpy==2.2.6
+pillow==12.3.0
+pdfminer.six==20260107
+cryptography==50.0.2
+charset-normalizer==3.5.2
+pyinstaller==6.22.3
