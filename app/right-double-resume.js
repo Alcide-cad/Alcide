@@ -1,6 +1,7 @@
 (()=>{
  let last=null,suppressUntil=0,suppressPixel=null;
  window.addEventListener('pointerdown',ev=>{
+  if(window.selectionAddMode||tool==='copy'||typeof pendingTransformSelection!=='undefined'&&pendingTransformSelection==='copy'){last=null;return;}
   if(ev.button!==2||busy||!scene||document.querySelector('dialog[open]:not(#helpdialog):not(#detail-library)')){last=null;return;}
   if(!ev.target.closest?.('#overlay,#contextmenu,#rebar-context-menu,#rebar-label-menu')){last=null;return;}
   if(window.dimensionPointContextTarget?.(ev)){last=null;return;}

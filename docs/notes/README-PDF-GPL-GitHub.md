@@ -7,7 +7,7 @@ Les sources utiles sont pdf_gpl_backend.py, pdf_vector_import.py, engine.py et l
 1. Dans un environnement Python 3.10 Windows x64, installer requirements-engine-gpl.txt.
 2. Exécuter python build_pdf_engine_gpl.py. Le moteur apparaît dans build-gpl/dist/alcide-engine.
 3. Placer le composant Poppler testé sous alcide-engine/poppler/bin, avec ses dépendances et les notices. Le manifeste poppler-provenance.json décrit les archives de référence. Conserver les éléments DWG nécessaires à part : ce remplacement concerne seulement la chaîne PDF.
-4. Refaire les tests d’import, de calques, de texte et de sauvegarde DWG. Les PDF réels de Nicolas ne doivent pas être publiés ; utiliser des fixtures libres créées pour les tests.
+4. Refaire les tests d’import, de calques, de texte et de sauvegarde DWG. Les PDF réels d'un chantier ne doivent pas être publiés ; utiliser des fixtures libres, par exemple Plan de test A, B et C.
 
 Ne pas publier directement le dossier de travail complet : il contient des plans clients, profils de test, copies de DWG et anciens moteurs. Préparer un dépôt contenant les sources choisies, les licences et les instructions, avec les dossiers work, outputs, profils et fichiers utilisateur exclus. Grok pourra reprendre cette base plus tard.
 

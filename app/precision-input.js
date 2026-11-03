@@ -60,7 +60,7 @@ function precisionContext(){
    // Après le premier point, une composante vide en ΔX/ΔY signifie zéro.
    const x=read('numeric-x',absolute?fallback[0]:0),y=read('numeric-y',absolute?fallback[1]:0);return [x+b[0],y+b[1]];
   }
-  if(!c.anchor)return null;let d=raw.map((v,i)=>v-c.anchor[i]);if(shiftConstraintHeld||$('#ortho').checked){if(Math.abs(d[0])>=Math.abs(d[1]))d[1]=0;else d[0]=0;}
+  if(!c.anchor)return null;let d=world(pixel).map((v,i)=>v-c.anchor[i]);if(shiftConstraintHeld||$('#ortho').checked){if(Math.abs(d[0])>=Math.abs(d[1]))d[1]=0;else d[0]=0;}
   const length=read('numeric-distance',Math.hypot(...d)),angleInput=$('#numeric-angle'),angle=angleInput.value.trim()?cadNumeric(angleInput.value):Math.atan2(d[1],d[0])*180/Math.PI;
   angleInput.setAttribute('aria-invalid',String(!Number.isFinite(angle)));if(!Number.isFinite(length)||!Number.isFinite(angle)||c.kind==='draw'&&length<=0||!angleInput.value.trim()&&Math.hypot(...d)<1e-10)return null;
   const rad=angle*Math.PI/180;let ux=Math.cos(rad),uy=Math.sin(rad);

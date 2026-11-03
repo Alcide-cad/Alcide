@@ -12,6 +12,8 @@ from ezdxf.addons.drawing import Frontend, RenderContext
 from ezdxf.addons.drawing.backend import Backend
 from ezdxf.addons.drawing.config import Configuration
 from ezdxf.addons.drawing.properties import Filling
+import curve_precision126
+curve_precision126.install()
 from ezdxf.colors import int2rgb, aci2rgb
 from ezdxf.lldxf.encoding import decode_dxf_unicode
 from ezdxf.enums import TextEntityAlignment
@@ -22,7 +24,7 @@ SOURCE = None
 WARNINGS = []
 DOCUMENTS = {}
 ACTIVE = None
-CACHE_VERSION = 'alcide-0.6.5-labels-vertical-leaders'
+CACHE_VERSION = 'alcide-curve-precision126'
 
 SCANNED_FONT_DIRS=set()
 
@@ -1349,6 +1351,17 @@ def apply_arrows(e,value):
     if spec is None:return []
     e.set_xdata('ALCIDE_ARROWS',[(1000,json.dumps(spec))]);return add_arrow_heads(e,spec)
 def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False):
+    # The serializer creates many short-lived graph nodes. A single collection
+    # after the verified transaction avoids repeated full scans during parsing.
+    enabled=gc.isenabled()
+    if enabled:gc.disable()
+    try:return _export_verified(filename,changes,dimensions,edits,layer_changes,reinforcement,backup)
+    finally:
+        if enabled:
+            gc.enable()
+            gc.collect()
+
+def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False):
     # Work on a fresh copy; never mutate the source or the active document.
     from io import StringIO
     path=Path(filename)
@@ -1357,6 +1370,7 @@ def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforceme
     if path.suffix.lower()=='.dwg' and SOURCE and Path(SOURCE).suffix.lower()=='.dwg' and not any((changes,dimensions,edits,layer_changes,reinforcement)):
         return {**dwg_export.copy_original(SOURCE,path,backup=backup),'dimensions':0}
     if path.suffix.lower()=='.dwg' and SOURCE and Path(SOURCE).suffix.lower()=='.dwg':
+        progress('Préparation de la base du DWG…')
         out=dwg_export.source_document(SOURCE)
     else:
         require_doc(full=True);auditor=DOC.audit()
@@ -1762,7 +1776,7 @@ def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforceme
     path=Path(filename)
     if path.suffix.lower()=='.dwg':
         for layer in final_locks:layer.lock()
-        return {**dwg_export.publish(out,path,backup=backup),'dimensions':len(dimensions)}
+        return {**dwg_export.publish(out,path,backup=backup,progress=progress),'dimensions':len(dimensions)}
     if SOURCE and path.resolve()==Path(SOURCE).resolve():raise ValueError('Choisir un autre nom pour préserver le dessin source.')
     for layer in final_locks:layer.lock()
     with tempfile.TemporaryDirectory(prefix='alcide-dxf-export-') as folder:
@@ -1843,7 +1857,6 @@ def dispatch(r):
         return True
     entry=activate(r.get('docId','default'))
     if cmd=='freeze-source':
-        require_doc(full=True)
         frozen=Path(r['path']).resolve()
         if not frozen.is_file() or frozen.suffix.lower() not in ('.dwg','.dxf'):raise ValueError('Base de sauvegarde invalide.')
         SOURCE=str(frozen);entry['source']=SOURCE

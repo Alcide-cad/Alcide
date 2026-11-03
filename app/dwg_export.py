@@ -3,6 +3,7 @@ import os, shutil, subprocess, tempfile, math, hashlib, time, uuid
 from pathlib import Path
 from collections import Counter
 import ezdxf
+import pickle
 import document_scale
 
 def converter():
@@ -40,12 +41,50 @@ def convert(source, target, kind, assets=()):
         if result.returncode or not output.is_file():raise ValueError('La conversion ODA a échoué ; aucun fichier final n’a été remplacé.')
         shutil.copy2(output,target)
 
+# Reuse the immutable source conversion within one engine session. Every save
+# still reads a fresh document, so edits can never accumulate on this baseline.
+_SOURCE_CACHE=None
+_SOURCE_CACHE_FILES={}
+_SOURCE_MEMORY_KEY=None
+_SOURCE_MEMORY_BYTES=None
+def _remember_source(key,doc):
+    global _SOURCE_MEMORY_KEY,_SOURCE_MEMORY_BYTES
+    # Private in-process bytes only: never unpickle a file or external data.
+    _SOURCE_MEMORY_KEY=None;_SOURCE_MEMORY_BYTES=None
+    try:
+        blob=pickle.dumps(doc,protocol=5)
+        if len(blob)<=32*1024*1024:_SOURCE_MEMORY_KEY=key;_SOURCE_MEMORY_BYTES=blob
+    except Exception:pass
 def source_document(source):
-    with tempfile.TemporaryDirectory(prefix='alcide-source-') as folder:
-        path=Path(folder)/'source.dxf';convert(source,path,'DXF');doc=ezdxf.readfile(path)
-        audit=doc.audit()
-        if audit.has_errors:raise ValueError('Le DWG source présente des erreurs de structure après conversion.')
+    global _SOURCE_CACHE,_SOURCE_MEMORY_KEY,_SOURCE_MEMORY_BYTES
+    source=Path(source).resolve();stat=source.stat();exe=converter();tool=exe.stat()
+    key=(str(source),stat.st_size,stat.st_mtime_ns,str(exe),tool.st_size,tool.st_mtime_ns)
+    if key==_SOURCE_MEMORY_KEY and _SOURCE_MEMORY_BYTES is not None:
+        try:return pickle.loads(_SOURCE_MEMORY_BYTES)
+        except Exception:_SOURCE_MEMORY_KEY=None;_SOURCE_MEMORY_BYTES=None
+    if _SOURCE_CACHE is None:_SOURCE_CACHE=tempfile.TemporaryDirectory(prefix='alcide-save-source-')
+    cached=_SOURCE_CACHE_FILES.get(key)
+    if cached is None or not cached.is_file():
+        cached=Path(_SOURCE_CACHE.name)/(uuid.uuid4().hex+'.dxf')
+        convert(source,cached,'DXF')
+        # Cache only validated conversions; conversion failure never poisons it.
+        doc=ezdxf.readfile(cached);audit=doc.audit()
+        if audit.has_errors:
+            cached.unlink(missing_ok=True)
+            raise ValueError('Le DWG source présente des erreurs de structure après conversion.')
+        _SOURCE_CACHE_FILES[key]=cached
+        while len(_SOURCE_CACHE_FILES)>3:
+            oldest=next(iter(_SOURCE_CACHE_FILES));_SOURCE_CACHE_FILES.pop(oldest).unlink(missing_ok=True)
+        _remember_source(key,doc)
         return doc
+    try:
+        doc=ezdxf.readfile(cached);audit=doc.audit()
+        if audit.has_errors:raise ValueError('Cache de sauvegarde invalide.')
+        _remember_source(key,doc)
+        return doc
+    except Exception:
+        _SOURCE_CACHE_FILES.pop(key,None);cached.unlink(missing_ok=True)
+        return source_document(source)
 
 def fingerprint(doc):
     # Handles allow geometry/properties validation, even on entities not rendered by Alcide.
@@ -67,6 +106,10 @@ def fingerprint(doc):
         return contents
     def record(e,ancestors=()):
         data={k:value(e.dxf.get(k)) for k in fields if e.dxf.is_supported(k) and e.dxf.get(k) is not None}
+        # DXF writers omit default attributes. Compare their actual semantic
+        # values rather than whether an explicit default happened to be stored.
+        for key,default in [('color',256),('linetype','BYLAYER'),('lineweight',-1),('flags',0),('closed',0)]:
+            if e.dxf.is_supported(key):data[key]=value(e.dxf.get(key,default))
         for k in ('angle','rotation','text_rotation','width','view_twist_angle'):
             if e.dxf.is_supported(k):data[k]=value(e.dxf.get(k,1 if k=='width' and e.dxftype()=='TEXT' else 0))
         for key in ('angle','rotation','text_rotation'):
@@ -106,6 +149,8 @@ def fingerprint(doc):
     layouts={layout.name:{e.dxf.handle:record(e) for e in layout} for layout in doc.layouts}
     layers={l.dxf.name:{k:value(v) for k,v in l.dxf.all_existing_dxf_attribs().items() if k in fields or k=='plot'} for l in doc.layers}
     for l in doc.layers:
+        for key,default in [('flags',0),('linetype','Continuous'),('lineweight',-3),('plot',1),('color',7)]:
+            layers[l.dxf.name][key]=value(l.dxf.get(key,default))
         if 'true_color' in layers[l.dxf.name]:
             layers[l.dxf.name]['off']=l.is_off()
             layers[l.dxf.name].pop('color',None)
@@ -171,8 +216,13 @@ def copy_original(source,path,backup=False):
 
 
 
-def publish(doc,path,backup=False):
-    path=Path(path);converter()
+def publish(doc,path,backup=False,progress=None):
+    path=Path(path);converter();started=time.perf_counter();phase=started;timings={}
+    def mark(name):
+        nonlocal phase
+        now=time.perf_counter();timings[name]=round(now-phase,4);phase=now
+    report=progress or (lambda message:None)
+    report('Contrôle du dessin avant sauvegarde…')
     with tempfile.TemporaryDirectory(prefix='alcide-export-') as folder:
         root=Path(folder);dxf=root/'drawing.dxf';dwg=root/'drawing.dwg';checkfile=root/'check.dxf'
         audit=doc.audit()
@@ -181,13 +231,14 @@ def publish(doc,path,backup=False):
             for e in layout:
                 if e.dxf.layer not in doc.layers:doc.layers.new(e.dxf.layer)
         assets=[path.parent/(path.stem+'_images')]
-        doc.saveas(dxf);expected=fingerprint(ezdxf.readfile(dxf));convert(dxf,dwg,'DWG',assets)
+        doc.saveas(dxf);expected=fingerprint(doc);mark('prepareAndFingerprint')
+        report('Création du DWG…');convert(dxf,dwg,'DWG',assets);mark('writeDWG')
         with dwg.open('rb') as f:
             if f.read(6)!=b'AC1032':raise ValueError('La version du DWG généré est invalide.')
-        convert(dwg,checkfile,'DXF',assets);check=ezdxf.readfile(checkfile)
+        report('Vérification du DWG enregistré…');convert(dwg,checkfile,'DXF',assets);mark('reopenDWG');check=ezdxf.readfile(checkfile)
         if check.audit().has_errors:raise ValueError('Le DWG généré échoue au contrôle de réouverture.')
         actual=fingerprint(check)
         for key in expected:
             if not equivalent(expected[key],actual[key]):raise ValueError('Export DWG annulé : différence détectée lors du contrôle de '+key+'. Le fichier précédent est conservé.')
-        result=publish_file(dwg,path,backup=backup)
-        return dict(**result,format='DWG',version='2018',entities=sum(len(l) for l in check.layouts),layouts=list(actual['layouts']),verified=True)
+        mark('verify');report('Écriture du fichier et de la copie de sécurité…');result=publish_file(dwg,path,backup=backup);mark('publish');timings['total']=round(time.perf_counter()-started,4)
+        return dict(**result,timings=timings,format='DWG',version='2018',entities=sum(len(l) for l in check.layouts),layouts=list(actual['layouts']),verified=True)

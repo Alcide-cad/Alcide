@@ -30,7 +30,7 @@
  // Le panneau métier occupe la même colonne : il ne recouvre jamais les onglets.
  const rebar=$('#rebar-dialog');let frame=0;
  function dockRebar(){frame=0;if(!rebar.open){if(panel.dataset.sideTab==='rebar'&&!panel.hidden)window.openSidePropertyTab('properties');return;}if(panel.dataset.sideTab!=='rebar')window.openSidePropertyTab('rebar');if(panel.hidden)setPanelVisible(true);const r=panel.getBoundingClientRect();
-  for(const [key,value] of Object.entries({left:r.left+'px',right:'auto',top:r.top+'px',bottom:'auto',width:r.width+'px',height:r.height+'px',maxHeight:r.height+'px',borderRadius:'0px'}))if(rebar.style.getPropertyValue(key)!==value||rebar.style.getPropertyPriority(key)!=='important')rebar.style.setProperty(key,value,'important');
+  for(const [key,value] of Object.entries({left:r.left+'px',right:'auto',top:r.top+'px',bottom:'auto',width:r.width+'px',height:r.height+'px','max-height':r.height+'px','border-radius':'0px'}))if(rebar.style.getPropertyValue(key)!==value||rebar.style.getPropertyPriority(key)!=='important')rebar.style.setProperty(key,value,'important');
  }
  const schedule=()=>{if(!frame)frame=requestAnimationFrame(dockRebar);};
  new MutationObserver(schedule).observe(rebar,{attributes:true,attributeFilter:['hidden','style']});new ResizeObserver(schedule).observe(panel);

@@ -9,7 +9,19 @@
  function pending(){try{return typeof pendingTransformSelection!=='undefined'&&pendingTransformSelection||typeof pendingObjectAction!=='undefined'&&pendingObjectAction&&!pendingObjectAction.confirm;}catch{return null;}}
  function finish(){toggle(false);drawOverlay();if(window.SelectionAdd.onFinish){window.SelectionAdd.onFinish();return;}if(!selected.size)return;if(tool==='move-select'){window.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));return;}try{if(typeof pendingTransformSelection!=='undefined'&&pendingTransformSelection){const next=pendingTransformSelection;pendingTransformSelection=null;setTool(next);return;}if(typeof pendingObjectAction!=='undefined'&&pendingObjectAction&&!pendingObjectAction.confirm){const a=pendingObjectAction;pendingObjectAction=null;a.run();}}catch(e){console.warn(e);}}
  window.SelectionAdd.finish=finish;window.SelectionAdd.blocksAutoRun=()=>!!window.selectionAddMode;
- window.addEventListener('contextmenu',ev=>{if(ev.target!==overlay||!collecting()||busy||!scene||!window.selectionAddMode)return;ev.preventDefault();ev.stopImmediatePropagation();finish();overlay.focus({preventScroll:true});},true);
+ window.addEventListener('contextmenu',ev=>{
+  if(ev.target!==overlay||busy||!scene)return;
+  const copyPending=typeof pendingTransformSelection!=='undefined'&&pendingTransformSelection==='copy',copyBase=tool==='copy'&&!points.length;
+  if(!window.selectionAddMode&&(copyPending||copyBase)){
+   ev.preventDefault();ev.stopImmediatePropagation();
+   if(copyBase){setTool('select');pendingTransformSelection='copy';}
+   toggle(true);drawOverlay();overlay.focus({preventScroll:true});return;
+  }
+  if(!collecting()||!window.selectionAddMode)return;
+  ev.preventDefault();ev.stopImmediatePropagation();
+  if(copyPending&&!selected.size){status('Copier : choisissez au moins un objet avant de terminer la sélection.');return;}
+  finish();overlay.focus({preventScroll:true});
+ },true);
  // En mode +, le clic gauche ne sert qu'à ajouter (pas de poignée, pas de point de base) : clic ou fenêtre.
  window.addEventListener('pointerdown',ev=>{if(!window.selectionAddMode||ev.target!==overlay||ev.button!==0||ev.altKey||busy||!scene||!collecting()||typeof overlapArmed!=='undefined'&&overlapArmed||document.getElementById('overlap-picker')?.hidden===false)return;ev.preventDefault();ev.stopImmediatePropagation();overlay.focus({preventScroll:true});try{overlay.setPointerCapture(ev.pointerId);}catch{}const p=eventPoint(ev);drag={mode:'select',start:p,last:p,moved:false,ctrl:true};},true);
  window.addEventListener('keydown',ev=>{if(!window.selectionAddMode||document.getElementById('overlap-picker')?.hidden===false||!ev.isTrusted&&ev.key==='Enter'||['INPUT','TEXTAREA','SELECT'].includes(ev.target.tagName))return;if(ev.key==='Escape'){ev.preventDefault();ev.stopImmediatePropagation();toggle(false);if(typeof pendingObjectAction!=='undefined'&&pendingObjectAction?.immediate)pendingObjectAction=null;drawOverlay();window.SelectionAdd.onCancel?.();}else if(ev.key==='Enter'&&(tool==='move-select'||pending())){ev.preventDefault();ev.stopImmediatePropagation();finish();}else if(ev.key==='Enter'){ev.preventDefault();ev.stopImmediatePropagation();finish();}},true);

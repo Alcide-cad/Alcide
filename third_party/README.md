@@ -11,6 +11,7 @@
 | fontTools | MIT | https://github.com/fonttools/fonttools | yes |
 | Pillow | HPND | https://github.com/python-pillow/Pillow | yes (in engine) |
 | pdfminer.six 20260107 | MIT | https://github.com/pdfminer/pdfminer.six | yes (in engine, PDF import) |
+| polygon-clipping (vendored `app/polygon-clipping125.js`, with splaytree) | MIT; a short TypeScript helper in the bundle is Apache-2.0 | https://github.com/mfogel/polygon-clipping | yes (fill union). Notice: `app/LICENSE-polygon-clipping-MIT.txt` |
 | cryptography 50.0.2 | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography | yes (in engine, pdfminer.six dependency) |
 | charset-normalizer 3.5.2 | MIT | https://github.com/jawah/charset_normalizer | yes (in engine, pdfminer.six dependency) |
 | Poppler 26.09.0 (`pdftoppm`) | GPL-2.0-only OR GPL-3.0-only | https://poppler.freedesktop.org/poppler-26.09.0.tar.xz | yes (`fetch-poppler.ps1`, separate executable in `engine/poppler`) |
