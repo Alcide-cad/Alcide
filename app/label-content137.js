@@ -1,0 +1,10 @@
+// Ordered label content shared by display and export. Geometry and quantities are read-only.
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.LabelContent137=api;})(globalThis,()=>{
+ const keys=['quantity','steel','spacing','name','length','suffix'];
+ function order(s={}){return [...new Set([...(s.order||[]).filter(k=>keys.includes(k)),...keys])];}
+ function format(fields,s={}){return order(s).filter(k=>!(k==='quantity'&&s.showQuantity===false)).map(k=>String(fields[k]??'').trim()).filter(Boolean).join(' ');}
+ const fmt=n=>Number(n.toFixed(2)).toLocaleString('fr-FR',{maximumFractionDigits:2});
+ function embedded(m,v,g,count,legacy){const s=v.labelContent137;if(!s||m.linearSet&&v.labelReferenceOnly)return legacy;const name=s.name??({cadre:'Cadres',octagon:'Cadres octogonaux',cerce:'Cerces',U:'U',L:'Équerres',epingle:'Épingles',straight:'Barres droites',polyline:'Barres façonnées'}[m.shape]||'');if(m.linearSet){const groups=new Map();for(const p of g.parts||[]){const key=p.diameter+'|'+p.shape,prior=groups.get(key);if(prior)prior.quantity+=p.count;else groups.set(key,{quantity:p.count,steel:'HA'+p.diameter});}const steel=[...groups.values()].map(p=>(s.showQuantity===false?'':p.quantity+' ')+p.steel).join(' + ');return format({steel,name:v.labelReferenceOnly?'':name,length:v.labelLength===false?'':'L='+fmt(m.linear.lengthM)+' m',suffix:v.labelSuffix||''},{...s,showQuantity:false});}return format({quantity:count,steel:m.kind==='mesh'?m.ref:'HA'+m.diameter,spacing:v.labelSpacing!==false&&m.count>1?'e='+fmt(m.spacing/10):'',name:s.showName===false?'':name,length:v.labelLength!==false?'L='+fmt(g.length/10)+' cm':'',suffix:v.labelSuffix||''},s);}
+ function position(qty,diameter,defaultName,length,spacing,rec,legacy){const s=rec.content137;if(!s)return legacy;return format({quantity:qty,steel:'HA'+diameter,spacing:rec.showSpacing?spacing.replace(/^\s*·\s*/,'').replace(/\s+cm$/,''):'',name:rec.showName===false?'':s.name??defaultName,length:rec.showLength===false?'':'L='+length+' cm',suffix:rec.suffix||''},s);}
+ return {keys,order,format,embedded,position};
+});

@@ -12,7 +12,7 @@
  function arrange(){
   const root=q('#properties'),card=root.querySelector('.selection-editor');
   const colorRow=q('#objectcolor')?.closest('label');if(colorRow)colorRow.classList.toggle('palette093-inherited-color',q('#objectcolormode')?.value==='bylayer');
-  if(card&&!card.dataset.palette093){card.dataset.palette093='1';card.querySelector('h2').textContent='Apparence et calque';
+  if(card&&!card.dataset.palette093){card.dataset.palette093='1';card.querySelector('h2').textContent='Aspect et calque';
    const extra=[...card.children].filter(n=>n.matches('.selection-actions')||n.tagName==='BUTTON');
    if(extra.length)card.append(disclosure('palette093-advanced','Déplacement précis et options',extra));
    for(const id of ['objectlayer','objectcolormode','objectcolor','objectlinetype','objectweight']){const input=q('#'+id);if(input)input.title=({objectlayer:'Calque des objets sélectionnés',objectcolormode:'Couleur héritée du calque ou couleur propre',objectcolor:'Choisir la couleur des objets',objectlinetype:'Type de trait des objets sélectionnés',objectweight:'Épaisseur du trait'})[id];}

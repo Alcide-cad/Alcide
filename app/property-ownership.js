@@ -17,7 +17,7 @@
  const hint=document.createElement('p');hint.className='property-audit-note';hint.hidden=true;panel.append(hint);
  let lastSync=null;function sync(){const state=JSON.stringify([activeId,saveToken,[...selected],panel.dataset.sideTab,busy]);if(state===lastSync)return;lastSync=state;
   const es=[...selected].map(id=>entities.get(id)).filter(Boolean),nativeHatch=es.length&&es.every(e=>e.type==='HATCH'),steel=es.length&&es.every(e=>e.rebar);
-  const h=panel.querySelector('#properties .selection-editor h2');if(h){const title=nativeHatch?'Propriétés graphiques':'Propriétés de l’objet';if(h.textContent!==title)h.textContent=title;}
+  const h=$('#objectlayer')?.closest('.selection-editor')?.querySelector('h2');if(h){const title='Aspect et calque';if(h.textContent!==title)h.textContent=title;}
   const incompatible=panel.dataset.sideTab==='hatch'&&es.length&&!hatchTargets().length;
   hint.hidden=!incompatible;
   if(incompatible){hint.classList.remove('dock-excluded');hint.textContent=steel?'Les armatures se règlent dans leur panneau métier : diamètre, forme, quantité, espacement et repère.':'Sélectionnez un contour fermé ou une hachure pour modifier son remplissage.';}

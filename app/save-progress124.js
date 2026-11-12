@@ -1,13 +1,46 @@
-// Etapes réelles transmises par le moteur ; pas de pourcentage estimé.
+// Brief acknowledgment of the snapshot. The save itself stays in the background.
 (()=>{
- const host=document.getElementById('busy'),box=document.createElement('section');box.id='save-progress124';box.hidden=true;
- box.innerHTML='<div class="save124-heading"><strong>Enregistrement sécurisé</strong><span data-elapsed></span></div><ol></ol><small>Zoom et déplacement disponibles. Les modifications reprennent après la vérification.</small>';
- host.append(box);
- const labels=['Préparer le dessin','Écrire le DWG','Relire et vérifier','Remplacer le fichier'],list=box.querySelector('ol');
- for(const text of labels){const li=document.createElement('li');li.textContent=text;list.append(li);}
- let timer=0,start=0,doc=null,step=0;
- const show=()=>{box.querySelector('[data-elapsed]').textContent=((performance.now()-start)/1000).toFixed(0)+' s';[...list.children].forEach((li,i)=>{li.dataset.state=i<step?'done':i===step?'current':'waiting';li.setAttribute('aria-current',i===step?'step':'false');});};
- window.SaveProgress124={start(id){doc=id;step=0;start=performance.now();box.hidden=false;host.classList.add('save124','soft');show();clearInterval(timer);timer=setInterval(show,250);},finish(){clearInterval(timer);timer=0;doc=null;box.hidden=true;host.classList.remove('save124');},state:()=>({doc,step,elapsed:doc?(performance.now()-start)/1000:0})};
- api.onProgress(p=>{if(!doc||p.docId&&p.docId!==doc)return;const text=p.text||'';step=Math.max(step,/remplacement|publication|copie de sécurité/i.test(text)?3:/vérification|relecture|relire/i.test(text)?2:/conversion|création du DWG|écriture|écrire/i.test(text)?1:0);show();});
- const css=document.createElement('style');css.textContent='#busy.save124{display:block;width:min(360px,calc(100% - 40px));padding:14px;box-sizing:border-box;box-shadow:0 6px 24px #0005}#busy.save124[hidden]{display:none}#busy.save124>.spinner,#busy.save124>#busytext{display:none}#save-progress124 .save124-heading{display:flex;justify-content:space-between;gap:12px;font-size:13px}#save-progress124 ol{display:grid;grid-template-columns:1fr 1fr;gap:8px;list-style:none;padding:0;margin:12px 0}#save-progress124 li{font-size:11px;color:var(--muted);border-left:2px solid #60717c;padding-left:7px}#save-progress124 li[data-state=current]{color:var(--text);border-color:#ffc978}#save-progress124 li[data-state=done]{color:var(--accent);border-color:var(--accent)}#save-progress124 small{font-size:10px;line-height:1.4;display:block;color:var(--muted)}';document.head.append(css);
+ const host=document.getElementById('busy'),box=document.createElement('section');
+ box.id='save-progress124';box.hidden=true;box.setAttribute('role','status');
+ box.innerHTML='<span data-thumb aria-hidden="true">👍</span><span data-wait aria-hidden="true"></span><strong data-close-title>Fermeture en attente</strong><small>Instantané pris</small>';
+ host.after(box);
+ const label=box.querySelector('small');
+ let timer=0,doc=null,start=0,step=0,closing=false;
+ window.SaveProgress124={
+  start(id){
+   clearTimeout(timer);
+   doc=id;start=performance.now();step=0;closing=false;
+   box.className='save124-ack';label.textContent='Instantané pris';box.hidden=false;
+   timer=setTimeout(()=>{box.hidden=true;},850);
+  },
+  finish(){doc=null;if(closing)box.hidden=true;},
+  waitForClose(){
+   clearTimeout(timer);closing=true;box.className='save124-close';box.hidden=false;
+   label.textContent='ALCIDE se fermera après vérification de la sauvegarde.';
+  },
+  state:()=>({doc,step,elapsed:doc?(performance.now()-start)/1000:0})
+ };
+ api.onProgress(p=>{
+  if(!doc||(p.docId&&p.docId!==doc))return;
+  const text=p.text||'';
+  step=Math.max(step,/remplacement|publication|copie de sécurité/i.test(text)?3:/vérification|relecture|relire/i.test(text)?2:/conversion|création du DWG|écriture|écrire/i.test(text)?1:0);
+ });
+ const css=document.createElement('style');
+ css.textContent=`
+  #save-progress124{position:absolute;right:14px;bottom:14px;z-index:10;pointer-events:none;background:#23313dee;border:1px solid #5b734e;border-radius:9px;padding:8px 12px;display:flex;align-items:center;gap:8px;color:var(--text)}
+  #save-progress124[hidden],#save-progress124.save124-close [data-thumb],#save-progress124.save124-ack [data-wait],#save-progress124.save124-ack [data-close-title]{display:none}
+  #save-progress124.save124-close{display:grid;grid-template-columns:24px minmax(0,1fr);gap:4px 12px;width:min(360px,calc(100% - 28px));box-sizing:border-box;padding:14px 16px;border:1px solid #efbd74;border-left:4px solid #efbd74;box-shadow:0 6px 24px #0008;animation:save124-attention 650ms ease-out both}
+  #save-progress124.save124-close[hidden]{display:none}
+  #save-progress124.save124-close strong{font-size:15px;color:#ffd397}
+  #save-progress124.save124-close small{grid-column:2;line-height:1.4}
+  #save-progress124 [data-wait]{grid-row:span 2;align-self:center;width:18px;height:18px;border:2px solid #efbd7455;border-top-color:#ffd397;border-radius:50%;animation:save124-spin 950ms linear infinite}
+  @keyframes save124-attention{from{transform:translateY(8px);box-shadow:0 0 0 8px #efbd7466}to{transform:translateY(0);box-shadow:0 6px 24px #0008}}
+  @keyframes save124-spin{to{transform:rotate(360deg)}}
+  @media(prefers-reduced-motion:reduce){#save-progress124.save124-close,#save-progress124 [data-wait]{animation:none}}
+  #save-progress124 small{font-size:12px}
+  #save-progress124.save124-ack [data-thumb]{font-size:20px;animation:save124-thumb 800ms ease both}
+  @keyframes save124-thumb{0%{transform:scale(.75);opacity:.4}25%{transform:scale(1.18);opacity:1}50%{transform:scale(1)}100%{transform:scale(1)}}
+  @media(prefers-reduced-motion:reduce){#save-progress124.save124-ack [data-thumb]{animation:none}}
+ `;
+ document.head.append(css);
 })();

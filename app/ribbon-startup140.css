@@ -1,0 +1,1 @@
+html:not(.ribbon-ready140) #ribbon{visibility:hidden!important}html:not(.ribbon-ready140) #ribbon *{transition:none!important;animation:none!important}

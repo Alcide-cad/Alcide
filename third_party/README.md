@@ -14,6 +14,7 @@
 | polygon-clipping (vendored `app/polygon-clipping125.js`, with splaytree) | MIT; a short TypeScript helper in the bundle is Apache-2.0 | https://github.com/mfogel/polygon-clipping | yes (fill union). Notice: `app/LICENSE-polygon-clipping-MIT.txt` |
 | cryptography 50.0.2 | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography | yes (in engine, pdfminer.six dependency) |
 | charset-normalizer 3.5.2 | MIT | https://github.com/jawah/charset_normalizer | yes (in engine, pdfminer.six dependency) |
+| olefile 0.47 | BSD-2-Clause and historical PIL licence | https://github.com/decalage2/olefile | yes (in engine, embedded picture preview). Notice: `app/OLEFILE-LICENSE.txt` |
 | Poppler 26.09.0 (`pdftoppm`) | GPL-2.0-only OR GPL-3.0-only | https://poppler.freedesktop.org/poppler-26.09.0.tar.xz | yes (`fetch-poppler.ps1`, separate executable in `engine/poppler`) |
 | Poppler Windows build v26.09.0-0 + its DLLs (cairo, freetype, lcms2, libpng, libjpeg-turbo, openjpeg, libtiff, zlib, curl, OpenSSL 3, ICU, MSVC runtime…) | each its own licence (MIT/BSD/zlib/Apache-2.0/ICU/LGPL/Microsoft redistributable) | https://github.com/oschwartz10612/poppler-windows/releases/tag/v26.09.0-0 (conda-forge builds) | yes, with Poppler |
 | poppler-data (CMaps) | BSD-style Adobe licence (CMaps) / GPL-2.0 or GPL-3.0 (other tables), see `share/poppler/COPYING*` | https://poppler.freedesktop.org | yes, with Poppler |

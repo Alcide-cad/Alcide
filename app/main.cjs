@@ -9,7 +9,7 @@ app.commandLine.appendSwitch('lang','fr');
 app.setPath('userData',app.commandLine.getSwitchValue('user-data-dir')||path.join(app.getPath('appData'),'DWG-Alcide'));
 const detachedSessionArgument=process.argv.find(a=>a.startsWith('--alcide-detached-session='));let detachedInitial=null,detachedTransferFile=null;
 if(detachedSessionArgument){detachedTransferFile=path.resolve(detachedSessionArgument.split('=').slice(1).join('='));const allowed=path.join(app.getPath('temp'),'ALCIDE-detached')+path.sep;if(!detachedTransferFile.startsWith(allowed))throw Error('Session détachée invalide.');detachedInitial=JSON.parse(fs.readFileSync(detachedTransferFile,'utf8'));app.setPath('userData',path.join(path.dirname(detachedTransferFile),'profile'));}
-require('./recovery09-main.cjs')({app,ipcMain,sources});
+const recoveryHistory=require('./recovery09-main.cjs')({app,ipcMain,sources});
 const recentPath=path.join(app.commandLine.getSwitchValue('user-data-dir')||path.join(app.getPath('appData'),'DWG-Alcide'),'recent-files.json');
 function recentFiles(){try{const entries=JSON.parse(fs.readFileSync(recentPath,'utf8'));return Array.isArray(entries)?entries.filter(e=>typeof e.path==='string'&&/\.(dwg|dxf|alcide|pdf)$/i.test(e.path)).slice(0,20):[];}catch{return [];}}
 function storeRecent(entries){fs.mkdirSync(path.dirname(recentPath),{recursive:true});const temp=recentPath+'.'+process.pid+'.tmp';fs.writeFileSync(temp,JSON.stringify(entries,null,2),'utf8');fs.renameSync(temp,recentPath);return entries;}
@@ -27,7 +27,7 @@ const ownsInstance=!!detachedInitial||app.requestSingleInstanceLock();
 let rendererReady=false,externalFiles=[];
 function deliverExternalFiles(){if(!rendererReady||!win||win.isDestroyed())return;for(const file of externalFiles.splice(0))win.webContents.send('initial-file',file);}
 function acceptExternalFiles(argv,cwd=process.cwd()){for(const value of argv){if(typeof value==='string'&&!value.startsWith('--')&&/\.(dwg|dxf|alcide|pdf)$/i.test(value)){const file=path.resolve(cwd,value);if(!externalFiles.includes(file))externalFiles.push(file);}}deliverExternalFiles();}
-if(!ownsInstance)app.quit();
+if(!ownsInstance){app.whenReady().then(()=>{if(process.argv.some(a=>a.startsWith('--expected-build=')))dialog.showErrorBox('ALCIDE est déjà ouvert','Une instance ALCIDE est déjà active. Enregistrez vos dessins puis fermez toutes les fenêtres ALCIDE avant de lancer la version installée.');app.quit();});}
 else if(!detachedInitial){app.on('second-instance',(_,argv,cwd)=>{acceptExternalFiles(argv,cwd);if(win){if(win.isMinimized())win.restore();win.show();win.focus();}});app.on('open-file',(event,file)=>{event.preventDefault();acceptExternalFiles([file]);});}
 ipcMain.on('detached-bootstrap',(event)=>{event.returnValue=detachedInitial?.preferences||null;});
 
@@ -45,11 +45,17 @@ function startWorker(){
 function fail(e){for(const p of pending.values()){clearTimeout(p.timer);p.reject(e);}pending.clear();}
 function request(cmd){if(workerFailure)return Promise.reject(workerFailure);if(!worker?.stdin?.writable)return Promise.reject(new Error('Moteur de dessin indisponible. Consultez Aide → Diagnostic de compatibilité.'));return new Promise((resolve,reject)=>{const id=++seq;const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Le traitement du dessin dépasse le délai prévu.'));},['export','decompose-all','begin-block-edit','finish-block-edit','pdf-import'].includes(cmd.cmd)?600000:180000);pending.set(id,{resolve,reject,timer});worker.stdin.write(JSON.stringify({...cmd,id})+'\n');});}
 function validateFile(p,exts){if(typeof p!=='string'||!exts.includes(path.extname(p).toLowerCase())||!fs.statSync(p).isFile())throw new Error('Fichier non pris en charge.');return path.resolve(p);}
-app.whenReady().then(()=>{
+let releaseStatus150=null;
+ipcMain.handle('release-info150',async(event,deep)=>{if(event.sender!==win?.webContents)throw Error('Fenêtre non autorisée.');const checked=deep===true?await require('./release-integrity150.cjs').verify(__dirname,app.getVersion(),{deep:true}):releaseStatus150;return {...checked,executable:process.execPath,application:app.getAppPath()};});
+app.whenReady().then(async()=>{
  if(!ownsInstance)return;
+ releaseStatus150=await require('./release-integrity150.cjs').verify(__dirname,app.getVersion());
+ const expected=process.argv.find(a=>a.startsWith('--expected-build='))?.slice(17);
+ if(expected&&expected!==releaseStatus150.buildId){releaseStatus150.ok=false;releaseStatus150.errors.push('Le raccourci attend une autre compilation.');}
+ if(!releaseStatus150.ok){dialog.showErrorBox('Installation ALCIDE incomplète','Cette installation mélange des fichiers de versions différentes ou contient un fichier manquant. Réinstallez ALCIDE depuis son installeur officiel.\n\n'+releaseStatus150.errors.slice(0,8).join('\n'));app.quit();return;}
  startWorker();
  const action=name=>()=>win?.webContents.send('menu-action',name);
- Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&Fichier',submenu:[{label:'&Nouveau dessin',accelerator:'Ctrl+N',click:action('new')},{label:'&Ouvrir…',accelerator:'Ctrl+O',click:action('open')},{type:'separator'},{label:'Importer un PDF vectoriel…',click:action('importpdf')},{label:'&Enregistrer',accelerator:'Ctrl+S',click:action('save')},{label:'Enregistrer &sous…',accelerator:'Ctrl+Shift+S',click:action('saveas')},{label:'Enregistrer un projet ALCIDE…',click:action('saveproject')},{label:'Exporter en DXF…',accelerator:'Ctrl+E',click:action('export')},{label:'Charger un LISP…',click:action('lisp')},{type:'separator'},{label:'Fermer le dessin',accelerator:'Ctrl+W',click:action('close')},{label:'Quitter',accelerator:'Alt+F4',click:()=>win?.close()}]},{label:'&Édition',submenu:[{label:'Annuler',click:action('undo')},{label:'Rétablir',click:action('redo')},{type:'separator'},{label:'Paramètres…',click:action('settings')},{label:'Raccourcis clavier…',click:action('shortcuts')}]},{label:'&Aide',submenu:[{label:'Aide et version…',accelerator:'F1',click:action('help')},{label:'Diagnostic de compatibilité…',click:()=>openCompatibilityDiagnostic()}]}]));
+ Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&Fichier',submenu:[{label:'&Nouveau dessin',accelerator:'Ctrl+N',click:action('new')},{label:'&Ouvrir…',accelerator:'Ctrl+O',click:action('open')},{type:'separator'},{label:'Importer un PDF vectoriel…',click:action('importpdf')},{label:'&Enregistrer',accelerator:'Ctrl+S',click:action('save')},{label:'Enregistrer &sous…',accelerator:'Ctrl+Shift+S',click:action('saveas')},{label:'Enregistrer un projet ALCIDE…',click:action('saveproject')},{label:'Exporter en DXF…',accelerator:'Ctrl+E',click:action('export')},{label:'Charger un LISP…',click:action('lisp')},{type:'separator'},{label:'Fermer le dessin',accelerator:'Ctrl+W',click:action('close')},{label:'Quitter',accelerator:'Alt+F4',click:()=>win?.close()}]},{label:'&Édition',submenu:[{label:'Annuler',click:action('undo')},{label:'Rétablir',click:action('redo')},{type:'separator'},{label:'Paramètres…',click:action('settings')},{label:'Raccourcis clavier…',click:action('shortcuts')}]},{label:'&Aide',submenu:[{label:'Aide et version…',accelerator:'F1',click:action('help')},{label:'Mises à jour…',click:action('updates')}]}]));
  win=new BrowserWindow({width:1440,height:940,minWidth:1050,minHeight:680,title:'ALCIDE',icon:path.join(__dirname,'app-icon.ico'),backgroundColor:'#111820',autoHideMenuBar:false,webPreferences:{backgroundThrottling:false,preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  if(!detachedInitial)win.maximize();
  win.setMenuBarVisibility(false);
@@ -62,7 +68,14 @@ app.whenReady().then(()=>{
  win.webContents.on('before-input-event',(event,input)=>{if(input.key==='Alt'){if(input.type==='keyDown'&&!input.isAutoRepeat)altUsed=false;if(input.type==='keyUp'&&!altUsed){event.preventDefault();toggleMenu();}}else if(input.alt&&input.type==='keyDown'){altUsed=true;win.setMenuBarVisibility(true);}});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  win.webContents.on('will-navigate',(e,url)=>{if(url!==win.webContents.getURL())e.preventDefault();});
- win.loadFile('index.html');
+ await require('./release-integrity150.cjs').prepareSession(win.webContents.session,app.getPath('userData'),releaseStatus150.buildId);
+ win.loadFile(path.join(__dirname,'index.html'),{query:{build:releaseStatus150.buildId}});
+ const savingWindow=win;
+ savingWindow.on('close',event=>{
+  if(!savingWindows.has(savingWindow.webContents))return;
+  event.preventDefault();
+  savingWindow.webContents.send('wait-for-drawing-save');
+ });
  win.webContents.on('did-finish-load',()=>{if(detachedInitial){win.webContents.send('detached-session',detachedInitial);return;}rendererReady=true;acceptExternalFiles(process.argv);});
 });
 ipcMain.handle('choose-open',async()=>{const r=await dialog.showOpenDialog(win,{title:'Ouvrir un dessin',buttonLabel:'Ouvrir',defaultPath:lastDialogFolder()||app.getPath('documents'),filters:[{name:'Plans DWG / DXF / PDF vectoriels / projets Alcide',extensions:['dwg','dxf','pdf','alcide']}],properties:['openFile']});if(r.canceled)return null;rememberDialogFolder(r.filePaths[0]);return r.filePaths[0];});
@@ -71,9 +84,9 @@ ipcMain.handle('pdf-info',(_,file)=>request({cmd:'pdf-info',path:validateFile(fi
 ipcMain.handle('pdf-preview',(_,file,page)=>request({cmd:'pdf-preview',path:validateFile(file,['.pdf']),page}));
 ipcMain.handle('pdf-import',async(_,data)=>{const source=validateFile(data.path,['.pdf']),dir=path.join(app.getPath('userData'),'pdf-imports',require('crypto').randomUUID()),name=cleanSuggestedName(source).replace(/\.pdf$/i,'')+' - page '+(Number(data.page)+1)+'.dxf',target=path.join(dir,name);const result=await request({cmd:'pdf-import',path:source,target,page:data.page,scale:data.scale,unit:data.unit,includeHidden:data.includeHidden});rememberDialogFolder(source);return {...result,source};});
 async function readScene(r){if(!r.sceneFile)return r;const t=performance.now();const data=await fs.promises.readFile(r.sceneFile);return {sceneGzip:data.toString('base64'),cacheHit:r.cacheHit,docId:r.docId,openSeconds:r.openSeconds,loadTimings:r.loadTimings,transferSeconds:(performance.now()-t)/1000};}
-ipcMain.handle('open-drawing',async(_,p,docId)=>{p=validateFile(p,['.dwg','.dxf']);const r=await request({cmd:'open',path:p,docId});sources.set(docId,p);return readScene(r);});
+ipcMain.handle('open-drawing',async(_,p,docId)=>{p=validateFile(p,['.dwg','.dxf']);const isDwg=path.extname(p).toLowerCase()==='.dwg',hash=isDwg?await drawingDiskHash(p):null;const r=await request({cmd:'open',path:p,docId});sources.set(docId,p);if(hash)drawingDiskVersions.set(docId,{path:p,hash});if(path.extname(p).toLowerCase()==='.dwg')setTimeout(()=>{if(sources.get(docId)===p&&!pending.size)request({cmd:'warm-save-source',docId}).catch(()=>{});},2000).unref();return readScene(r);});
 ipcMain.handle('layout',async(_,layout,docId)=>readScene(await request({cmd:'layout',layout,docId})));
-ipcMain.handle('close-drawing',async(_,docId)=>{sources.delete(docId);return request({cmd:'close',docId});});
+ipcMain.handle('close-drawing',async(_,docId)=>{const result=await request({cmd:'close',docId});baselineLifecycle.release(sources.get(docId));sources.delete(docId);frozenSaveSources.delete(docId);savedDrawingStats122.delete(docId);drawingDiskVersions.delete(docId);return result;});
 ipcMain.handle('dimension-preview',async(_,docId,requests)=>{const result=await request({cmd:'dimension-preview',docId,requests});return {dimensionGzip:zlib.gzipSync(JSON.stringify(result),{level:1}).toString('base64')};});
 ipcMain.handle('hatch-preview',(_,docId,requests)=>request({cmd:'hatch-preview',docId,requests}));
 ipcMain.handle('text-preview',(_,docId,requests)=>request({cmd:'text-preview',docId,requests}));
@@ -82,20 +95,36 @@ ipcMain.handle('cache-info',()=>request({cmd:'cache-info'}));
 ipcMain.handle('clear-cache',()=>request({cmd:'clear-cache'}));
 ipcMain.handle('read-lisp',(_,p)=>fs.readFileSync(validateFile(p,['.lsp']),'utf8'));
 ipcMain.handle('choose-lisp',async()=>{const r=await dialog.showOpenDialog(win,{title:'Charger un fichier AutoLISP',buttonLabel:'Charger',filters:[{name:'AutoLISP',extensions:['lsp']}],properties:['openFile']});return r.canceled?null:r.filePaths[0];});
-ipcMain.handle('save-project',async(_,data)=>{const source=sources.get(data.docId);if(!source)throw Error('Dessin fermé ou inconnu.');const {docId,projectPath,saveAs,...saved}=data;let target=projectPath;if(target&&path.extname(target).toLowerCase()!=='.alcide')throw Error('Enregistrer le projet demande un fichier .alcide.');if(saveAs||!target){const r=await dialog.showSaveDialog(win,{title:saveAs?'Enregistrer le projet sous…':'Enregistrer le projet',buttonLabel:'Enregistrer',defaultPath:dialogSavePath(target||(newDrawingSources.has(source)?path.join(app.getPath('documents'),'Dessin sans titre.alcide'):source.replace(/\.[^.]+$/,'.alcide'))),filters:[{name:'Projet ALCIDE',extensions:['alcide']}]});if(r.canceled)return null;target=r.filePath;if(path.extname(target).toLowerCase()!=='.alcide')target+='.alcide';}target=path.resolve(target);const tmp=target+'.'+Date.now()+'.tmp';try{fs.writeFileSync(tmp,JSON.stringify({format:'DWG-Alcide',version:1,source,...saved},null,2),'utf8');fs.renameSync(tmp,target);}finally{if(fs.existsSync(tmp))fs.unlinkSync(tmp);}rememberDialogFolder(target);return target;});
+ipcMain.handle('save-project',async(_,data)=>{const source=sources.get(data.docId);if(!source)throw Error('Dessin fermé ou inconnu.');const {docId,projectPath,saveAs,...saved}=data;let target=projectPath;if(target&&path.extname(target).toLowerCase()!=='.alcide')throw Error('Enregistrer le projet demande un fichier .alcide.');if(saveAs||!target){const r=await dialog.showSaveDialog(win,{title:saveAs?'Enregistrer le projet sous…':'Enregistrer le projet',buttonLabel:'Enregistrer',defaultPath:dialogSavePath(target||(newDrawingSources.has(source)?path.join(app.getPath('documents'),'Dessin sans titre.alcide'):source.replace(/\.[^.]+$/,'.alcide'))),filters:[{name:'Projet ALCIDE',extensions:['alcide']}]});if(r.canceled)return null;target=r.filePath;if(path.extname(target).toLowerCase()!=='.alcide')target+='.alcide';}target=path.resolve(target);const tmp=target+'.'+Date.now()+'.tmp';try{baselineLifecycle.pin(source);fs.writeFileSync(tmp,JSON.stringify({format:'DWG-Alcide',version:1,source,...saved},null,2),'utf8');fs.renameSync(tmp,target);}finally{if(fs.existsSync(tmp))fs.unlinkSync(tmp);}rememberDialogFolder(target);return target;});
 ipcMain.handle('read-project',(_,p)=>{const data=JSON.parse(fs.readFileSync(validateFile(p,['.alcide']),'utf8'));if(data.format!=='DWG-Alcide'||data.version!==1)throw new Error('Projet Alcide non reconnu.');return data;});
 // DWG save and DXF export share one verified publisher; no legacy post-export dialog.
 const frozenSaveSources=new Set();
+const baselineLifecycle=require('./baseline-lifecycle128.cjs')(path.join(app.getPath('userData'),'save-baselines'));
 async function freezeSaveSource(docId){
  const source=sources.get(docId);if(!source)throw Error('Dessin fermé ou inconnu.');
  if(frozenSaveSources.has(docId))return source;
  const baselineParent=path.join(app.getPath('userData'),'save-baselines'),root=path.join(baselineParent,require('crypto').randomUUID());fs.mkdirSync(root,{recursive:true});
  const frozen=path.join(root,path.basename(source));fs.copyFileSync(source,frozen);
  try{await request({cmd:'freeze-source',docId,path:frozen});}catch(error){if(path.dirname(path.resolve(root))===path.resolve(baselineParent))fs.rmSync(root,{recursive:true,force:true});throw error;}
- sources.set(docId,frozen);frozenSaveSources.add(docId);return frozen;
+ baselineLifecycle.mark(frozen);sources.set(docId,frozen);frozenSaveSources.add(docId);return frozen;
 }
-const savedDrawingStats122=new Map();
-ipcMain.handle('drawing-save-current122',(_,docId)=>{const prior=savedDrawingStats122.get(docId);if(!prior)return false;try{const stat=fs.statSync(prior.path);return stat.size===prior.size&&stat.mtimeMs===prior.mtimeMs;}catch{return false;}});
+const savedDrawingStats122=new Map(), drawingDiskVersions=new Map();
+async function drawingDiskHash(file){
+ const hash=require('node:crypto').createHash('sha256');
+ for await(const chunk of fs.createReadStream(file))hash.update(chunk);
+ return hash.digest('hex');
+}
+const diskPathKey=file=>path.resolve(file).toLowerCase();
+const externalDrawingError=()=>Error('Le DWG sur disque a changé depuis son ouverture ou son dernier enregistrement. Utilisez Enregistrer sous avec un autre nom ou rouvrez le fichier.');
+
+ipcMain.handle('drawing-save-current122',async(_,docId)=>{const prior=savedDrawingStats122.get(docId);if(!prior)return false;try{const stat=fs.statSync(prior.path),baseline=drawingDiskVersions.get(docId);return stat.size===prior.size&&stat.mtimeMs===prior.mtimeMs&&!!baseline&&await drawingDiskHash(prior.path)===baseline.hash;}catch{return false;}});
+const savingWindows=new Set(), saveWorkerPriorities=new WeakMap();
+async function saveFromWindow(event,data,dxf=false){
+ const sender=event.sender;
+ if(savingWindows.has(sender))throw Error('Un enregistrement est déjà en cours.');
+ savingWindows.add(sender);
+ try{return await saveDrawing(data,dxf);}finally{savingWindows.delete(sender);}
+}
 async function saveDrawing(data,dxf=false){
  const source=sources.get(data.docId);if(!source)throw Error('Dessin fermé ou inconnu.');
  const current=data.drawingPath&&path.extname(data.drawingPath).toLowerCase()==='.dwg'?path.resolve(data.drawingPath):null;
@@ -105,20 +134,45 @@ async function saveDrawing(data,dxf=false){
   if(result.canceled)return null;target=result.filePath;if(!path.extname(target))target+='.'+ext;
  }
  target=path.resolve(target);if(path.extname(target).toLowerCase()!==(dxf?'.dxf':'.dwg'))throw Error(dxf?'Choisissez un fichier .dxf.':'Choisissez un fichier .dwg.');
+ const baseline=drawingDiskVersions.get(data.docId);
+ const expectedTargetHash=baseline&&diskPathKey(baseline.path)===diskPathKey(target)?baseline.hash:null;
+ if(expectedTargetHash&&await drawingDiskHash(target).catch(()=>null)!==expectedTargetHash)throw externalDrawingError();
  // Freeze every affected base before replacing a source opened in this session.
  await freezeSaveSource(data.docId);
  for(const [id,original] of sources)if(id!==data.docId&&path.resolve(original).toLowerCase()===target.toLowerCase())await freezeSaveSource(id);
- const result=await request({cmd:'export',...data,path:target,backup:!dxf});
+ const savingWorker=worker, os=require('node:os');
+ let priorityState;
+ if(process.platform==='win32'&&savingWorker?.pid){
+  priorityState=saveWorkerPriorities.get(savingWorker);
+  if(!priorityState){
+   try{
+    const previous=os.getPriority(savingWorker.pid);
+    os.setPriority(savingWorker.pid,Math.max(previous,os.constants.priority.PRIORITY_BELOW_NORMAL));
+    priorityState={previous,count:0};saveWorkerPriorities.set(savingWorker,priorityState);
+   }catch{}
+  }
+  if(priorityState)priorityState.count++;
+ }
+ let result;
+ try{result=await request({cmd:'export',...data,path:target,backup:!dxf,expectedTargetHash});}
+ finally{
+  if(priorityState&&--priorityState.count===0){
+   saveWorkerPriorities.delete(savingWorker);
+   if(worker===savingWorker&&savingWorker.exitCode===null){
+    try{os.setPriority(savingWorker.pid,priorityState.previous);}catch{}
+   }
+  }
+ }
  if(!result?.path||!result.verified||!fs.statSync(result.path).isFile()||!fs.statSync(result.path).size)throw Error('Le dessin enregistré est absent ou non vérifié.');
- if(!dxf&&!result.recovery){const stat=fs.statSync(result.path);savedDrawingStats122.set(data.docId,{path:result.path,size:stat.size,mtimeMs:stat.mtimeMs});}
+ if(!dxf&&!result.recovery){const stat=fs.statSync(result.path);drawingDiskVersions.set(data.docId,{path:result.path,hash:result.publishedHash||await drawingDiskHash(result.path)});savedDrawingStats122.set(data.docId,{path:result.path,size:stat.size,mtimeMs:stat.mtimeMs});await recoveryHistory.recordVerified(data.docId,result.path).catch(()=>{});}
  rememberDialogFolder(result.recovery?result.requestedPath:result.path);
  if(result.recovery)await dialog.showMessageBox(win,{type:'warning',title:'Copie locale de secours',message:'Le dossier demandé refuse l’écriture. Le fichier précédent est conservé.',detail:'Une copie vérifiée est disponible ici : '+result.path,buttons:['Fermer']});
  return {...result,sourceBase:sources.get(data.docId)};
 }
-ipcMain.handle('save-drawing',(_,data)=>saveDrawing(data));
-ipcMain.handle('export-dxf',(_,data)=>saveDrawing(data,true));
+ipcMain.handle('save-drawing',(event,data)=>saveFromWindow(event,data));
+ipcMain.handle('export-dxf',(event,data)=>saveFromWindow(event,data,true));
 ipcMain.handle('confirm-close',async()=>{const r=await dialog.showMessageBox(win,{type:'question',buttons:['Annuler','Continuer'],defaultId:0,cancelId:0,message:'Des modifications ne sont pas enregistrées.',detail:'Enregistrez le dessin DWG ou un projet ALCIDE pour conserver votre travail.'});return r.response===1;});
-app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>worker?.kill());
+app.on('window-all-closed',()=>app.quit());app.on('will-quit',()=>worker?.kill());
 
 
 
@@ -167,6 +221,12 @@ ipcMain.handle('app-version',()=>app.getVersion());
 
 // Print a prepared paper sheet in an isolated renderer, never the application UI.
 ipcMain.handle('print-paper116',async(event,data)=>{
+ if(data?.sheets){
+ if(event.sender!==win?.webContents||!Array.isArray(data.sheets)||!data.sheets.length||data.sheets.length>20)throw Error('Lot de feuilles invalide.');
+ let size=0;for(const s of data.sheets){if(!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(s?.image||'')||![s.width,s.height].every(v=>Number.isFinite(v)&&v>=50&&v<=2000))throw Error('Feuille invalide.');size+=s.image.length;}if(size>180000000)throw Error('Lot trop volumineux : réduisez la qualité.');
+ const r=await dialog.showSaveDialog(win,{title:'Enregistrer les présentations PDF',defaultPath:path.join(lastDialogFolder()||app.getPath('desktop'),'Presentations-ALCIDE.pdf'),filters:[{name:'Document PDF',extensions:['pdf']}]});if(r.canceled)return null;
+ const pw=new BrowserWindow({show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});try{const css=data.sheets.map((s,i)=>'@page sheet'+i+'{size:'+s.width+'mm '+s.height+'mm;margin:0} .sheet'+i+'{page:sheet'+i+';width:'+s.width+'mm;height:'+s.height+'mm;break-after:page}').join('');await pw.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent('<html><head><style>html,body{margin:0}img{display:block;width:100%;height:100%}section:last-child{break-after:auto}'+css+'</style></head><body>'+data.sheets.map((s,i)=>'<section class="sheet'+i+'"><img src="'+s.image+'"></section>').join('')+'</body></html>'));await pw.webContents.executeJavaScript('Promise.all(Array.from(document.images,i=>i.decode()))');const pdf=await pw.webContents.printToPDF({printBackground:true,preferCSSPageSize:true});await fs.promises.writeFile(r.filePath,pdf);rememberDialogFolder(r.filePath);return {path:r.filePath,pages:data.sheets.length};}finally{pw.destroy();}
+ }
  if(event.sender!==win?.webContents||!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(data?.image||'')||data.image.length>80000000)throw Error('Feuille invalide.');
  const width=Number(data.width),height=Number(data.height);if(![width,height].every(v=>Number.isFinite(v)&&v>=50&&v<=2000))throw Error('Format papier invalide.');
  let target=null;if(data.pdf){const r=await dialog.showSaveDialog(win,{title:'Enregistrer la feuille PDF',defaultPath:path.join(lastDialogFolder()||app.getPath('desktop'),'Plan-ALCIDE.pdf'),filters:[{name:'Document PDF',extensions:['pdf']}]});if(r.canceled)return null;target=r.filePath;}
@@ -178,3 +238,13 @@ ipcMain.handle('print-paper116',async(event,data)=>{
 });
 
 require('./github-updates121.cjs').install({app,ipcMain,shell,getWindow:()=>win});
+
+ipcMain.handle('reveal-drawing129',async(event,id)=>{if(event.sender!==win?.webContents)return false;const target=savedDrawingStats122.get(id)?.path;const source=sources.get(id);const file=target||(!frozenSaveSources.has(id)?source:null);if(typeof file!=='string'||!fs.existsSync(file))return false;shell.showItemInFolder(file);return true;});
+
+ipcMain.handle('clipboard-copy131',async(event,data)=>{if(event.sender!==win?.webContents||!sources.has(data?.docId))throw Error('Dessin source indisponible.');const r=await request({...data,cmd:'clipboard-copy131'});await require('electron').clipboard.writeText('ALCIDE-CAD-131\n'+JSON.stringify({dxf:r.dxf,unit:data.clipboardUnit131||'cm'}));return {dxf:r.dxf,scene:r.scene};});
+
+ipcMain.handle('clipboard-scale131',(event,data)=>{if(event.sender!==win?.webContents)throw Error('Fenêtre invalide.');return request({...data,cmd:'clipboard-scale131'});});
+
+ipcMain.handle('clipboard-read131',async event=>{if(event.sender!==win?.webContents)return null;const b=await require('electron').clipboard.readText();if(!b.startsWith('ALCIDE-CAD-131\n')||b.length>45000000)return null;try{const v=JSON.parse(b.slice(15));return typeof v.dxf==='string'&&v.dxf.length<=40000000&&['mm','cm','m','in','ft'].includes(v.unit)?v:null;}catch{return null;}});
+
+require('./palette-windows152.cjs').install({app,BrowserWindow,ipcMain,getWindow:()=>win});

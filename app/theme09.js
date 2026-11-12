@@ -1,6 +1,7 @@
 (()=>{
  let mode=localStorage.getItem('theme09')==='light'?'light':'dark',paper=false,paperColors=false;
- const current=()=>paper?(paperColors?'paper-color':'paper'):mode;
+ const layoutPaper=()=>!window.paperCapture116&&typeof scene!=='undefined'&&scene?.layout&&scene.layout!=='Model';
+ const current=()=>paper?(paperColors?'paper-color':'paper'):layoutPaper()?'layout-paper':mode;
  // Display contexts only: saved colours, fills and export records remain untouched.
  const nativeStyles=new Map(['fillStyle','strokeStyle'].map(property=>[property,Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype,property)]));let mapped=false;
  function mapContexts(enabled){if(mapped===enabled)return;for(const [property,d]of nativeStyles){if(!d?.set)continue;Object.defineProperty(CanvasRenderingContext2D.prototype,property,enabled?{...d,set(value){d.set.call(this,Theme09Core.color(value,current()));}}:d);}mapped=enabled;}
@@ -18,8 +19,12 @@
  function set(next){if(!['light','dark'].includes(next))throw Error('Thème inconnu.');mode=next;apply();}
  const button=document.createElement('button');button.id='theme09-toggle';button.onclick=()=>set(mode==='dark'?'light':'dark');$('.ribbon-fold').prepend(button);
  const print=document.createElement('button');print.id='theme09-paper';print.title='Vue courante sur fond blanc, sans grille, traits monochromes. Les fichiers exportés conservent leurs attributs.';print.onclick=()=>{paper=!paper;paperColors=false;apply();};$('#ribbon-affichage .ribbon-tools').append(print);
- const grid=paintDrawingGrid;paintDrawingGrid=function(...a){if(!paper)return grid(...a);};
- window.Theme09={set,current,mode:()=>mode,background:()=>paper?'rgb(255,255,255)':mode==='light'?'rgb(248,250,252)':'rgb(17,24,32)',paper:(enabled,colors=false)=>{paper=!!enabled;paperColors=!!colors;apply();},color:value=>Theme09Core.color(value,current())};apply();
+ const grid=paintDrawingGrid;paintDrawingGrid=function(context,...a){mapContexts(current()!=='dark');
+  if(layoutPaper()&&!paper){const b=scene.paper?.bounds||scene.bounds;if(!b)return;const pts=[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]].map(screen);context.save();context.beginPath();pts.forEach((p,i)=>i?context.lineTo(...p):context.moveTo(...p));context.closePath();context.shadowColor='rgba(0,0,0,.3)';context.shadowBlur=12;context.shadowOffsetY=3;context.fillStyle='rgb(255,255,255)';context.fill();context.shadowColor='transparent';context.strokeStyle='rgb(190,195,200)';context.lineWidth=1;context.stroke();context.restore();return;}
+  if(!paper)return grid(context,...a);
+ };
+ const init=initScene;initScene=async function(...args){const result=await init.apply(this,args);mapContexts(current()!=='dark');window.theme09Revision=(window.theme09Revision||0)+1;window.resetWorkerGraphicsCache?.({clearFrame:true});if(layoutPaper()&&scene.paper?.bounds){const b=scene.paper.bounds,s=Math.min((w-64)/(b[2]-b[0]),(h-64)/(b[3]-b[1]));view={s,tx:w/2-(b[0]+b[2])*s/2,ty:h/2+(b[1]+b[3])*s/2,angle:0};}requestRender();return result;};
+ window.Theme09={set,current,mode:()=>mode,background:()=>paper?'rgb(255,255,255)':layoutPaper()?'rgb(91,98,105)':mode==='light'?'rgb(248,250,252)':'rgb(17,24,32)',paper:(enabled,colors=false)=>{paper=!!enabled;paperColors=!!colors;apply();},color:value=>Theme09Core.color(value,current())};apply();
  let surfaceTimer;new MutationObserver(records=>{if(records.some(r=>r.target!==surfaceSheet&&[...r.addedNodes].some(n=>n.nodeType===1&&['LINK','STYLE'].includes(n.tagName)&&n!==surfaceSheet))){clearTimeout(surfaceTimer);surfaceTimer=setTimeout(surfaces,30);}}).observe(document.head,{childList:true});window.addEventListener('load',surfaces,{once:true});
  new MutationObserver(()=>{const root=$('#preferences-content');if(root?.dataset.section==='files'&&!root.querySelector('#recovery09-settings'))Recovery09.preferences(root);}).observe($('#preferences-content'),{childList:true});
  const prefs=showPreferences;showPreferences=function(...args){const r=prefs(...args);const root=$('#preferences-content');if(root?.dataset.section==='drawing'){const row=document.createElement('section');row.className='v09-card';row.innerHTML='<h3>Apparence</h3><p>Un thème clair adapté au dessin, sans modifier les couleurs enregistrées.</p>';for(const [text,fn]of [['Thème clair',()=>set('light')],['Thème sombre',()=>set('dark')]]){const b=document.createElement('button');b.textContent=text;b.onclick=fn;row.append(b);}root.prepend(row);}if(root?.dataset.section==='files'&&!root.querySelector('#recovery09-settings'))Recovery09.preferences(root);return r;};

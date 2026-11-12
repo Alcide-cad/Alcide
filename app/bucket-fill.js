@@ -4,6 +4,11 @@
  const area=ps=>ps.reduce((a,p,i)=>{const q=ps[(i+1)%ps.length];return a+p[0]*q[1]-q[0]*p[1];},0)/2;
  function inside(p,ring){let yes=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])yes=!yes;}return yes;}
  function mappedHoles(edit){const ref=edit.props.fillReference||edit.drawing.points,ps=edit.geometry?.points||edit.drawing.points,a=ref[0],b=ref[1],c=ps[0],d=ps[1],x=b[0]-a[0],y=b[1]-a[1],den=x*x+y*y,co=((d[0]-c[0])*x+(d[1]-c[1])*y)/den,si=((d[1]-c[1])*x-(d[0]-c[0])*y)/den;return (edit.props.fillHoles||[]).map(r=>r.map(p=>[c[0]+co*(p[0]-a[0])-si*(p[1]-a[1]),c[1]+si*(p[0]-a[0])+co*(p[1]-a[1])]));}
+ window.fillWorldHoles=function(e){
+  const edit=edits[e.id];
+  if(!edit?.drawing||!edit.props?.fillHoles?.length)return [];
+  return mappedHoles(edit).map(r=>r.map(([x,y])=>[x+(edit.dx||0),y+(edit.dy||0)]));
+ };
  const create=cadNewDrawing;cadNewDrawing=function(type,ps,props={},closed=false){if(props.fillOnly){const fake={drawing:{points:props.fillReference||ps},geometry:{points:ps},props};props={...props,fillHoles:mappedHoles(fake),fillReference:structuredClone(ps)};}return create(type,ps,props,closed);};
  window.addContourFill=function(e,values){
   const outer=e.type==='CIRCLE'?Array.from({length:128},(_,i)=>{const c=cadCirclePoints(e)[0];return [c[0]+e.radius*Math.cos(i*Math.PI/64),c[1]+e.radius*Math.sin(i*Math.PI/64)];}):cadVertices(e);
@@ -15,7 +20,13 @@
   edits[e.id]={...previous,fillId:id,props:{...previous.props,...values}};
  };
  function scanLines(rings,gap,angle,shift=0){const rad=angle*Math.PI/180,u=[Math.cos(rad),Math.sin(rad)],n=[-u[1],u[0]],proj=rings.flat().map(p=>p[0]*n[0]+p[1]*n[1]),lo=Math.ceil((Math.min(...proj)-shift)/gap),hi=Math.floor((Math.max(...proj)-shift)/gap),result=[];if(hi-lo>3000)throw Error('Motif trop dense : augmentez son espacement.');for(let k=lo;k<=hi;k++){const level=k*gap+shift,hits=[];for(const ring of rings)for(let i=0;i<ring.length;i++){const p=ring[i],q=ring[(i+1)%ring.length],v=p[0]*n[0]+p[1]*n[1],w=q[0]*n[0]+q[1]*n[1];if((v<=level&&w>level)||(w<=level&&v>level)){const t=(level-v)/(w-v);hits.push([p[0]+t*(q[0]-p[0]),p[1]+t*(q[1]-p[1])]);}}hits.sort((a,b)=>(a[0]-b[0])*u[0]+(a[1]-b[1])*u[1]);for(let i=1;i<hits.length;i+=2)result.push([hits[i-1],hits[i]]);}return result;}
- const build=cadDrawingEntity;cadDrawingEntity=function(id,edit){if(!edit.props?.fillOnly)return build(id,edit);const safe={...edit,props:{...edit.props,filled:false}},e=build(id,safe),rings=[edit.geometry?.points||edit.drawing.points,...mappedHoles(edit)],path=new Path2D();for(const r of rings){path.moveTo(...r[0]);for(const p of r.slice(1))path.lineTo(...p);path.closePath();}const base={...e.primitives[0],path,paths:rings.map(r=>[...r,r[0]]),selectionPaths:rings.map(r=>[...r,r[0]]),drawingFill:true,fill:true};e.primitives=[];const p=edit.props;if(!p.filled)return e;if(p.fillPattern==='SOLID')e.primitives.push(base);else{if(p.fillBackgroundColor)e.primitives.push({...base,hatchBackground:true});const lines=hatchPatternLines(scanLines,rings,p.fillSpacing||1,p.fillPattern,p.fillAngle),ink=new Path2D();for(const r of lines){ink.moveTo(...r[0]);ink.lineTo(...r[1]);}e.primitives.push({...base,path:ink,paths:lines,selectionPaths:lines,fill:false});}return e;};
+ function positionedPattern(rings,p){
+  const [x,y]=p.fillOrigin||[0,0];
+  const local=rings.map(r=>r.map(q=>[q[0]-x,q[1]-y]));
+  return hatchPatternLines(scanLines,local,p.fillSpacing||1,p.fillPattern,p.fillAngle)
+   .map(line=>line.map(q=>[q[0]+x,q[1]+y]));
+ }
+ const build=cadDrawingEntity;cadDrawingEntity=function(id,edit){if(!edit.props?.fillOnly)return build(id,edit);const safe={...edit,props:{...edit.props,filled:false}},e=build(id,safe),rings=[edit.geometry?.points||edit.drawing.points,...mappedHoles(edit)],path=new Path2D();for(const r of rings){path.moveTo(...r[0]);for(const p of r.slice(1))path.lineTo(...p);path.closePath();}const base={...e.primitives[0],path,paths:rings.map(r=>[...r,r[0]]),selectionPaths:rings.map(r=>[...r,r[0]]),drawingFill:true,fill:true};e.primitives=[];const p=edit.props;if(!p.filled)return e;if(p.fillPattern==='SOLID')e.primitives.push(base);else{if(p.fillBackgroundColor)e.primitives.push({...base,hatchBackground:true});const lines=positionedPattern(rings,p),ink=new Path2D();for(const r of lines){ink.moveTo(...r[0]);ink.lineTo(...r[1]);}e.primitives.push({...base,path:ink,paths:lines,selectionPaths:lines,fill:false});}return e;};
  function faces(point,search=null){
   const key=activeId+':'+saveToken+':'+scene.layout+':'+point.join(',')+':'+JSON.stringify(search);if(cache?.key===key)return cache.rings;
   let segments=[];const enclosing=[];const add=(a,b)=>{if(cadDistance(a,b)>1e-8)segments.push({a,b,cuts:[0,1],minX:Math.min(a[0],b[0]),maxX:Math.max(a[0],b[0]),minY:Math.min(a[1],b[1]),maxY:Math.max(a[1],b[1])});};

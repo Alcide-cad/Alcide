@@ -19,7 +19,7 @@
     const geometry=[...(edit.hatchGeometry||[]),{replacePaths:indices.map(index=>({index,points:next.map(p=>local(p,edit))}))}];edits[fill.id]={...edit,hatchGeometry:geometry,contourLoopBindings:{...edit.contourLoopBindings,[e.id]:indices[0]}};requests.push({id:fill.id,source:sourceHandle(fill),style:edit.hatchStyle||{},geometry});
    }
   }}catch(ex){restore(before);status(ex.message);return;}
-  const result=base(before,...args);if(requests.length){const doc=activeId,token=saveToken;pending=api.hatchPreview(doc,requests).then(renders=>{if(activeId!==doc||saveToken!==token)return;for(const render of renders)if(edits[render.id])edits[render.id]={...edits[render.id],hatchRender:render};refresh();}).catch(ex=>{if(activeId===doc&&saveToken===token){document.getElementById('undo').click();status('Modification annulée : '+ex.message);}});}return result;
+  const result=base(before,...args);if(requests.length){const doc=activeId,token=saveToken;pending=api.hatchPreview(doc,typeof clipboardPreviewRequests131==='function'?clipboardPreviewRequests131(requests):requests).then(renders=>{if(activeId!==doc||saveToken!==token)return;for(const render of renders)if(edits[render.id])edits[render.id]={...edits[render.id],hatchRender:render};refresh();}).catch(ex=>{if(activeId===doc&&saveToken===token){document.getElementById('undo').click();status('Modification annulée : '+ex.message);}});}return result;
  };
  window.FilledContourSync={wait:()=>pending};
 })();

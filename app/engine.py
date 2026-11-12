@@ -24,7 +24,7 @@ SOURCE = None
 WARNINGS = []
 DOCUMENTS = {}
 ACTIVE = None
-CACHE_VERSION = 'alcide-curve-precision126'
+CACHE_VERSION = 'alcide-paper155'
 
 SCANNED_FONT_DIRS=set()
 
@@ -243,7 +243,7 @@ def layer_info():
             aci=abs(layer.dxf.color)
             color='#e6edf3' if aci in (0,7) else '#%02x%02x%02x'%tuple(aci2rgb(max(1,min(255,aci))))
             if layer.dxf.hasattr('true_color'):color='#%06x'%layer.dxf.true_color
-            layers.append(dict(name=layer.dxf.name,color=color,aci=aci,locked=layer.is_locked(),visible=not layer.is_off() and not layer.is_frozen(),frozen=layer.is_frozen(),lineweight=layer.dxf.get('lineweight',-3),linetype=layer.dxf.get('linetype','Continuous'),transparency=round(layer.transparency*100),description=layer.description,plot=bool(layer.dxf.get('plot',1))))
+            layers.append(dict(name=layer.dxf.name,alcideCreated=layer.has_xdata('ALCIDE_LAYER_CREATED'),color=color,aci=aci,locked=layer.is_locked(),visible=not layer.is_off() and not layer.is_frozen(),frozen=layer.is_frozen(),lineweight=layer.dxf.get('lineweight',-3),linetype=layer.dxf.get('linetype','Continuous'),transparency=round(layer.transparency*100),description=layer.description,plot=bool(layer.dxf.get('plot',1))))
         return layers
     # Cached scenes need only the tiny TABLES section, never a full DXF read.
     filename=DOCUMENTS[ACTIVE]['converted'];chunks=[];section=None;found=False
@@ -267,7 +267,7 @@ def layer_info():
         aci=int(tags.get(62,7));flags=int(tags.get(70,0));rgb='#e6edf3' if abs(aci) in (0,7) else '#%02x%02x%02x'%tuple(aci2rgb(max(1,min(255,abs(aci)))))
         if 420 in tags:rgb='#%06x'%int(tags[420])
         trans=re.search(r'(?m)^1001\nAcCmTransparency\n1071\n([^\n]+)',block);desc=re.search(r'(?m)^1001\nAcAecLayerStandard\n1000\n[^\n]*\n1000\n([^\n]*)',block)
-        layers.append(dict(name=tags[2],color=rgb,aci=abs(aci),locked=bool(flags&4),visible=aci>0 and not flags&1,frozen=bool(flags&1),lineweight=int(tags.get(370,-3)),linetype=tags.get(6,'Continuous'),transparency=round(ezdxf.colors.transparency2float(int(trans.group(1)) if trans else int(tags.get(440,0x020000ff)))*100),description=decode_dxf_unicode(desc.group(1)) if desc else tags.get(4,''),plot=tags.get(290,'1')!='0'))
+        layers.append(dict(name=tags[2],alcideCreated=bool(re.search(r'(?m)^1001\nALCIDE_LAYER_CREATED\n',block)),color=rgb,aci=abs(aci),locked=bool(flags&4),visible=aci>0 and not flags&1,frozen=bool(flags&1),lineweight=int(tags.get(370,-3)),linetype=tags.get(6,'Continuous'),transparency=round(ezdxf.colors.transparency2float(int(trans.group(1)) if trans else int(tags.get(440,0x020000ff)))*100),description=decode_dxf_unicode(desc.group(1)) if desc else tags.get(4,''),plot=tags.get(290,'1')!='0'))
     return layers
 
 def preview_lines(doc):
@@ -448,6 +448,19 @@ def dimension_has_background(e,style):
     texts=[x for x in block if x.dxftype()=='MTEXT'] if block else []
     return any(x.dxf.get('bg_fill',0)&1 for x in texts) if texts else bool(style.get('dimtfill',0))
 
+def block_has_fills144(doc,name,ancestors=()):
+    cache=getattr(doc,'_fill_blocks144',None)
+    if cache is None:cache={};doc._fill_blocks144=cache
+    if name in cache:return cache[name]
+    if name in ancestors:return False
+    block=doc.blocks.get(name)
+    if block is None:return False
+    for child in block:
+        typ=child.dxftype()
+        if typ in ('HATCH','SOLID','TRACE','WIPEOUT') or typ=='LWPOLYLINE' and child.has_width or typ=='INSERT' and block_has_fills144(doc,child.dxf.name,ancestors+(name,)) or typ=='POLYLINE' and (child.dxf.get('default_start_width',0) or child.dxf.get('default_end_width',0) or any(v.dxf.get('start_width',0) or v.dxf.get('end_width',0) for v in child.vertices)):
+            cache[name]=True;return True
+    cache[name]=False;return False
+
 def metadata(e, layout, doc):
     d = e.dxf
     layer = doc.layers.get(d.layer)
@@ -487,14 +500,8 @@ def metadata(e, layout, doc):
             if not box.has_data:raise ValueError('OLE sans cadre')
             lo,hi=box.extmin,box.extmax
             m['ole']={'corners':[[lo.x,lo.y],[hi.x,lo.y],[hi.x,hi.y],[lo.x,hi.y]],'name':''}
-            blob=e.binary_data();preview=None
-            for start,end in ((b'\x89PNG\r\n\x1a\n',b'IEND\xaeB`\x82'),(b'\xff\xd8\xff',b'\xff\xd9')):
-                i=blob.find(start)
-                if i>=0:
-                    j=blob.find(end,i)
-                    if j>i:
-                        import base64
-                        preview=('data:image/png;base64,' if start[1:4]==b'PNG' else 'data:image/jpeg;base64,')+base64.b64encode(blob[i:j+len(end)]).decode();break
+            from ole_preview154 import preview as ole_preview
+            preview=ole_preview(e.binary_data())
             if preview:m['ole']['preview']=preview
             m['snap']=m['ole']['corners']
         except Exception:pass
@@ -576,6 +583,7 @@ def metadata(e, layout, doc):
         m['nativeDimension']['endStyle']={'OBLIQUE':'oblique','DOT':'dot','DOTBLANK':'circle','OPEN30':'arrow30','':'arrow','NONE':'none','ALCIDE_DIM_DOUBLE':'double','ALCIDE_DIM_DIAMOND':'diamond','ALCIDE_DIM_SQUARE45':'square45','ALCIDE_DIM_SQUARE45OPEN':'square45open'}.get(name,'oblique')
         m['nativeDimension']['textGap']=float(style.get('dimgap',.625))*scale
         m['nativeDimension']['fontFace']=font_family(doc,style.get('dimtxsty','Standard'))
+    if typ=='INSERT':m['hasBlockFills']=block_has_fills144(doc,e.dxf.name)
     return m
 
 def graphic_path_data(paths,fill=False):
@@ -619,6 +627,7 @@ class SceneBackend(Backend):
             self.items[handle]=dict(self.metas.get(handle,dict(id=handle,type=e.dxftype(),layer=e.dxf.layer,snap=[],locked=False,transparency=0,tags={})), primitives=[], bounds=[math.inf,math.inf,-math.inf,-math.inf])
         return self.items[handle]
     def add(self,paths,props,fill=False):
+        native_dash=getattr(self,'native_dash145',None) if not fill else None
         item=self.item(props)
         if item is None:return
         paths=[[point(p) for p in ps] for ps in paths]
@@ -636,9 +645,13 @@ class SceneBackend(Backend):
             root=self.entity_stack[0][0]
             inherits=root.dxf.get('color',256)==256 and not root.dxf.hasattr('true_color')
             if inherits:paint_layer=root.dxf.layer
-        detail_kind='text' if current.dxftype() in ('TEXT','MTEXT','ATTRIB','ATTDEF') else 'hatch' if current.dxftype()=='HATCH' else ''
+        # MTEXT glyphs may override the parent colour with inline ACI/RGB codes.
+        # The resolved glyph colour must not subsequently inherit the layer colour.
+        inline_colour = current.dxftype()=='MTEXT' and color.lower()!=self.entity_stack[-1][1].color[:7].lower()
+        if inline_colour:inherits=False
+        detail_kind='text' if current.dxftype() in ('TEXT','MTEXT','ATTRIB','ATTDEF') else 'hatch' if current.dxftype() in ('HATCH','SOLID','TRACE','WIPEOUT') or fill and current.dxftype() in ('LWPOLYLINE','POLYLINE') else ''
         detail_height=float(current.dxf.get('char_height',1) if current.dxftype()=='MTEXT' else current.dxf.get('height',1)) if detail_kind=='text' else 0
-        detail_spacing=min((math.hypot(*line.offset) for line in current.pattern.lines if math.hypot(*line.offset)>1e-10),default=0) if detail_kind=='hatch' and current.pattern else 0
+        detail_spacing=min((math.hypot(*line.offset) for line in current.pattern.lines if math.hypot(*line.offset)>1e-10),default=0) if current.dxftype()=='HATCH' and current.pattern else 0
         b=item['bounds']
         for ps in paths:
             for x,y in ps:
@@ -647,9 +660,9 @@ class SceneBackend(Backend):
                 if x>b[2]:b[2]=x
                 if y>b[3]:b[3]=y
         primitives=item['primitives']
-        if primitives and 'paths' in primitives[-1] and primitives[-1].get('detailKind','')==detail_kind and primitives[-1].get('detailHeight',0)==detail_height and primitives[-1].get('detailSpacing',0)==detail_spacing and not fill and not primitives[-1]['fill'] and primitives[-1]['color']==color and primitives[-1].get('byLayerColor')==inherits and primitives[-1].get('paintLayer')==paint_layer and primitives[-1].get('lineweight')==props.lineweight and primitives[-1].get('byLayerWeight')==inherits_weight and primitives[-1].get('visibilityLayer')==visibility_layer and primitives[-1].get('leafTransparency')==leaf_transparency and primitives[-1].get('leafByLayerTransparency')==current.is_transparency_by_layer and primitives[-1].get('leafByBlockTransparency')==current.is_transparency_by_block and primitives[-1].get('byBlockColor')==(current.dxf.get('color',256)==0 and not current.dxf.hasattr('true_color')) and primitives[-1].get('byBlockWeight')==(current.dxf.get('lineweight',-1)==-2):
+        if primitives and primitives[-1].get('nativeDash')==native_dash and 'paths' in primitives[-1] and primitives[-1].get('detailKind','')==detail_kind and primitives[-1].get('detailHeight',0)==detail_height and primitives[-1].get('detailSpacing',0)==detail_spacing and not fill and not primitives[-1]['fill'] and primitives[-1]['color']==color and primitives[-1].get('byLayerColor')==inherits and primitives[-1].get('paintLayer')==paint_layer and primitives[-1].get('lineweight')==props.lineweight and primitives[-1].get('byLayerWeight')==inherits_weight and primitives[-1].get('visibilityLayer')==visibility_layer and primitives[-1].get('leafTransparency')==leaf_transparency and primitives[-1].get('leafByLayerTransparency')==current.is_transparency_by_layer and primitives[-1].get('leafByBlockTransparency')==current.is_transparency_by_block and primitives[-1].get('byBlockColor')==(not inline_colour and current.dxf.get('color',256)==0 and not current.dxf.hasattr('true_color')) and primitives[-1].get('byBlockWeight')==(current.dxf.get('lineweight',-1)==-2):
             primitives[-1]['paths'].extend(paths)
-        else:primitives.append(dict(detailKind=detail_kind,detailHeight=detail_height,detailSpacing=detail_spacing,paths=paths,color=color,fill=fill,byBlockColor=current.dxf.get('color',256)==0 and not current.dxf.hasattr('true_color'),visibilityLayer=visibility_layer,weightLayer=weight_layer,leafTransparency=leaf_transparency,leafByBlockTransparency=current.is_transparency_by_block,byBlockWeight=current.dxf.get('lineweight',-1)==-2,leafByLayerTransparency=current.is_transparency_by_layer,byLayerWeight=inherits_weight,byLayerColor=inherits,paintLayer=paint_layer,lineweight=props.lineweight))
+        else:primitives.append(dict(nativeDash=native_dash,nativeDashGlobalScale=float(DOC.header.get('$LTSCALE',1)) if native_dash else None,detailKind=detail_kind,detailHeight=detail_height,detailSpacing=detail_spacing,paths=paths,color=color,fill=fill,byBlockColor=not inline_colour and current.dxf.get('color',256)==0 and not current.dxf.hasattr('true_color'),visibilityLayer=visibility_layer,weightLayer=weight_layer,leafTransparency=leaf_transparency,leafByBlockTransparency=current.is_transparency_by_block,byBlockWeight=current.dxf.get('lineweight',-1)==-2,leafByLayerTransparency=current.is_transparency_by_layer,byLayerWeight=inherits_weight,byLayerColor=inherits,paintLayer=paint_layer,lineweight=props.lineweight))
     def draw_point(self,pos,properties):self.add([[pos,pos]],properties)
     def draw_line(self,start,end,properties):self.add([[start,end]],properties)
     def draw_solid_lines(self,lines,properties):self.add(list(lines),properties)
@@ -706,9 +719,31 @@ class DisplayCopyStrategy(CopyStrategy):
 
 DISPLAY_COPY=DisplayCopyStrategy(CopySettings(copy_extension_dict=False))
 
+from ezdxf.addons.drawing.pipeline import LinetypeStage2d
+class NativeLineTypeStage145(LinetypeStage2d):
+    # Keep complete paths and their exact resolved pattern instead of expanding
+    # every dash to thousands of SVG segments. Clipping still runs upstream.
+    def emit(self,method,geometry,properties):
+        previous=getattr(self.scene_backend,'native_dash145',None)
+        self.scene_backend.native_dash145=tuple(self.pattern(properties)) or None
+        try:return method(*geometry,properties)
+        finally:self.scene_backend.native_dash145=previous
+    def draw_line(self,start,end,properties):return self.emit(self.next_stage.draw_line,(start,end),properties)
+    def draw_path(self,path,properties):return self.emit(self.next_stage.draw_path,(path,),properties)
+
 class RepeatedTextFrontend(Frontend):
     def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs);self.text_shapes={};self.hatch_segments=0;self.rendered_count=0;self.last_progress=time.perf_counter();self.annotation_context=NativeAnnotationContext(DOC);self.block_cache={};self.block_cache_points=0;self.block_cache_hits=0;self.block_cache_misses=0;self.text_cache_hits=0;self.text_cache_points=0;self.cache_clip_depth=0
+        super().__init__(*args,**kwargs);self.text_shapes={};self.hatch_segments=0;self.rendered_count=0;self.last_progress=time.perf_counter();self.annotation_context=NativeAnnotationContext(DOC);self.block_cache={};self.block_cache_points=0;self.block_cache_hits=0;self.block_cache_misses=0;self.text_cache_hits=0;self.text_cache_points=0;self.cache_clip_depth=0;self.line_shapes145={}
+        from collections import Counter
+        self.block_uses145=Counter(e.dxf.name for e in DOC.entitydb.values() if e.dxftype()=='INSERT')
+        stage=self.pipeline._pipeline.next_stage
+        native_stage=NativeLineTypeStage145(self.pipeline.config,get_ltype_scale=self.pipeline.get_vp_ltype_scale,next_stage=stage.next_stage)
+        native_stage.scene_backend=self.pipeline.backend
+        self.pipeline._pipeline.next_stage=native_stage
+        self.shape_uses145=Counter()
+        for name,count in self.block_uses145.items():
+            identity=self.line_block_identity145(name)
+            if identity:self.shape_uses145[identity[0]]+=count
     def draw_entity(self,entity,properties):
         if not self.annotation_context.visible(entity):return
         if entity.has_xdata('ALCIDE_ARROW'):return
@@ -749,6 +784,25 @@ class RepeatedTextFrontend(Frontend):
 
     def append_rendering(self,target,template,dx,dy):
         if template['primitives']:append_graphic_instance(target,template,dx,dy)
+    def line_block_identity145(self,name):
+        # Translation-only equivalence for plain LINE definitions. All display
+        # attributes are part of the identity; complex/annotative blocks keep the old path.
+        if name in self.line_shapes145:return self.line_shapes145[name]
+        self.line_shapes145[name]=None
+        block=DOC.blocks.get(name)
+        if block is None:return None
+        rows=[];anchor=None
+        for child in block:
+            if child.dxftype()!='LINE' or child.has_extension_dict or child.xdata:return None
+            attrs=child.dxf.all_existing_dxf_attribs().copy()
+            for field in ('handle','owner'):attrs.pop(field,None)
+            if anchor is None:anchor=child.dxf.start
+            for field in ('start','end'):attrs[field]=tuple(round(v-a,9) for v,a in zip(attrs[field],anchor))
+            rows.append(attrs)
+        if not rows:return None
+        signature=hashlib.sha256(json.dumps(rows,sort_keys=True,default=str).encode()).hexdigest()
+        result=(signature,anchor);self.line_shapes145[name]=result
+        return result
     def draw_composite_entity(self,entity,properties):
         backend=self._alcide_backend
         if entity.dxftype()!='INSERT':return super().draw_composite_entity(entity,properties)
@@ -760,20 +814,23 @@ class RepeatedTextFrontend(Frontend):
             self.cache_clip_depth+=int(clipped)
             try:return self.draw_insert_display(entity,properties)
             finally:self.cache_clip_depth-=int(clipped)
+        identity=self.line_block_identity145(entity.dxf.name)
         attrs=entity.dxf.all_existing_dxf_attribs().copy()
+        if identity:attrs['name']='line-shape145:'+identity[0]
         for field in ('handle','owner','insert'):attrs.pop(field,None)
         root=backend.entity_stack[0][0]
         inherit=tuple(str(root.dxf.get(k,'')) for k in ('layer','color','true_color','lineweight','transparency'))
         paint=(properties.color,properties.layer,properties.lineweight,properties.linetype_name,properties.linetype_scale,tuple(properties.linetype_pattern),inherit)
-        key=(json.dumps(attrs,sort_keys=True,default=str),paint)
-        cached=self.block_cache.get(key);insert=entity.dxf.insert
+        reusable=self.shape_uses145[identity[0]]>1 if identity else self.block_uses145[entity.dxf.name]>1
+        key=(json.dumps(attrs,sort_keys=True,default=str),paint) if reusable else None
+        cached=self.block_cache.get(key) if reusable else None;insert=entity.matrix44().transform(identity[1]) if identity else entity.dxf.insert
         if cached:template,x,y=cached;self.block_cache_hits+=1
         else:
             self.block_cache_misses+=1;template={'primitives':[],'bounds':[math.inf,math.inf,-math.inf,-math.inf]};prior=getattr(backend,'capture_item',None);backend.capture_item=template
             try:self.draw_insert_display(entity,properties)
             finally:backend.capture_item=prior
             x,y=insert.x,insert.y;count=sum(graphic_point_count(p) for p in template['primitives'])
-            if 0<count<=100000 and self.block_cache_points+count<=1500000:self.block_cache[key]=(template,x,y);self.block_cache_points+=count
+            if reusable and 0<count<=100000 and self.block_cache_points+count<=1500000:self.block_cache[key]=(template,x,y);self.block_cache_points+=count
         self.append_rendering(backend.item(properties),template,insert.x-x,insert.y-y)
     def draw_hatch_pattern(self,polygon,paths,properties):
         # Bound both baseline generation and tiny dash expansion (the upstream timeout
@@ -921,12 +978,61 @@ def scene(layout_name='Model'):
         backend.items[e.dxf.handle]=item;direct.add(e.dxf.handle)
     mark('nativeGeometry')
     try:
-        frontend=RepeatedTextFrontend(ctx,backend,config=Configuration());frontend._alcide_backend=backend
+        vp_boxes=None
+        if layout_name!='Model':
+            from ezdxf.bbox import Cache
+            from ezdxf.math import BoundingBox
+            vp_boxes=Cache()
+            # The model preview is already prepared when the user opens a layout.
+            # Reuse conservative entity bounds rather than expanding every block
+            # again in each viewport. Unknown entities retain ezdxf's exact fallback.
+            model_file=scene_path(DOCUMENTS[ACTIVE]['key'],'Model') if ACTIVE in DOCUMENTS else None
+            if model_file and model_file.exists():
+                with gzip.open(model_file,'rb') as stream:model_data=orjson.loads(stream.read())
+                for item in model_data.get('items',[]):
+                    entity=DOC.entitydb.get(item['id']);bounds=item.get('bounds')
+                    if entity is not None and bounds and len(bounds)==4 and all(isinstance(v,(float,int)) and math.isfinite(v) for v in bounds):
+                        vp_boxes.store(entity,BoundingBox([(bounds[0]-1e-7,bounds[1]-1e-7,0),(bounds[2]+1e-7,bounds[3]+1e-7,0)]))
+                for row in model_data.get('nativeLines',[]):
+                    entity=DOC.entitydb.get(row[0])
+                    if entity is not None:vp_boxes.store(entity,BoundingBox([(row[2],row[3],0),(row[4],row[5],0)]))
+                del model_data
+        frontend=RepeatedTextFrontend(ctx,backend,config=Configuration(),bbox_cache=vp_boxes);frontend._alcide_backend=backend
         if layout_name!='Model':frontend.cache_clip_depth=1
         frontend.draw_layout(layout,finalize=True,filter_func=lambda e:e.dxf.handle not in direct)
         if special:frontend.draw_entities(special)
     finally:
         for e,text in originals:e.text=text
+    # OLE leaves cannot be virtual-copied by ezdxf. Traverse block definitions
+    # without copying them and transform their cached pictures into world space.
+    ole_blocks={}
+    def block_oles(name,seen=()):
+        if name in seen:return []
+        if name in ole_blocks:return ole_blocks[name]
+        block=DOC.blocks.get(name)
+        result=[]
+        if block is not None:
+            for leaf in block:
+                if leaf.dxftype()=='OLE2FRAME':
+                    spec=metadata(leaf,layout_name,DOC).get('ole')
+                    if spec:result.append(spec)
+                elif leaf.dxftype()=='INSERT':
+                    matrix=leaf.matrix44()
+                    for spec in block_oles(leaf.dxf.name,seen+(name,)):
+                        result.append(dict(spec,corners=[point(matrix.transform((p[0],p[1],0))) for p in spec['corners']]))
+        ole_blocks[name]=result
+        return result
+    for insert in layout.query('INSERT'):
+        if not ctx.resolve_all(insert).is_visible:continue
+        specs=block_oles(insert.dxf.name)
+        if not specs:continue
+        matrix=insert.matrix44()
+        pictures=[dict(spec,corners=[point(matrix.transform((p[0],p[1],0))) for p in spec['corners']]) for spec in specs]
+        item=backend.items.setdefault(insert.dxf.handle,dict(metas[insert.dxf.handle],primitives=[],bounds=[math.inf,math.inf,-math.inf,-math.inf]))
+        item['ole']=pictures[0];item['oleImages']=pictures
+        for spec in pictures:
+            for p in spec['corners']:
+                for j in (0,1):item['bounds'][j]=min(item['bounds'][j],p[j]);item['bounds'][j+2]=max(item['bounds'][j+2],p[j])
     mark('renderGeometry')
     items=list(backend.items.values())
     order={handle:index for index,handle in enumerate(DOC._alcide_order)} if native else {e.dxf.handle:index for index,e in enumerate(layout)}
@@ -948,7 +1054,15 @@ def scene(layout_name='Model'):
     if backend.images:warnings.append(f"{backend.images} images raster non affichées dans cette version.")
     if list(DOC.query('ACAD_PROXY_ENTITY')):warnings.append('Présence d’objets proxy : leur affichage peut être incomplet.')
     draw_order=sorted(order,key=lambda handle:(int(mapping.get(handle,handle),16) or 0xFFFFFFFFFFFFFFFF,order[handle])) if mapping else list(order)
-    return dict(sceneTimings=timings,renderStats=dict(blockCacheHits=frontend.block_cache_hits,blockCacheMisses=frontend.block_cache_misses,blockCachePoints=frontend.block_cache_points,textCachePoints=frontend.text_cache_points,textCacheHits=frontend.text_cache_hits),fontResolution={name:font.filename for name,font in ctx.fonts.items()},linetypes={lt.dxf.name:[max(abs(v)*float(DOC.header.get('$LTSCALE',1)),1e-8) for v in lt.pattern_tags.compile() if v==0 or abs(v)>1e-10] for lt in DOC.linetypes},measurementScale=document_scale.read(DOC),layerInfo=layer_info(),nativeLines=native_lines,nativeStyles=native_styles,drawOrder=draw_order if native_lines else [],items=items,catalog=[m for handle,m in metas.items() if handle not in backend.items],bounds=b,requiresLocalRendering=any(abs(v)>100000 for v in b),layouts=DOC.layout_names(),layout=layout_name,source=SOURCE,
+    paper=None
+    if layout_name!='Model':
+        width=float(layout.dxf.get('paper_width',297));height=float(layout.dxf.get('paper_height',210))
+        if int(layout.dxf.get('plot_rotation',0)) in (1,3):width,height=height,width
+        units=25.4 if layout.dxf.get('plot_paper_units',1)==0 else 1.0
+        x=-float(layout.dxf.get('left_margin',0))-float(layout.dxf.get('plot_origin_x_offset',0))
+        y=-float(layout.dxf.get('bottom_margin',0))-float(layout.dxf.get('plot_origin_y_offset',0))
+        if width>0 and height>0:paper=dict(bounds=[x/units,y/units,(x+width)/units,(y+height)/units],widthMM=width,heightMM=height)
+    return dict(paper=paper,linetypeGlobalScale=float(DOC.header.get('$LTSCALE',1)),sceneTimings=timings,renderStats=dict(blockCacheHits=frontend.block_cache_hits,blockCacheMisses=frontend.block_cache_misses,blockCachePoints=frontend.block_cache_points,textCachePoints=frontend.text_cache_points,textCacheHits=frontend.text_cache_hits),fontResolution={name:font.filename for name,font in ctx.fonts.items()},linetypes={lt.dxf.name:[max(abs(v)*float(DOC.header.get('$LTSCALE',1)),1e-8) for v in lt.pattern_tags.compile() if v==0 or abs(v)>1e-10] for lt in DOC.linetypes},measurementScale=document_scale.read(DOC),layerInfo=layer_info(),nativeLines=native_lines,nativeStyles=native_styles,drawOrder=draw_order if native_lines else [],items=items,catalog=[m for handle,m in metas.items() if handle not in backend.items],bounds=b,requiresLocalRendering=any(abs(v)>100000 for v in b),layouts=DOC.layout_names(),layout=layout_name,source=SOURCE,
                 units=int(DOC.header.get('$INSUNITS',0)),warnings=warnings,
                 entities=len(metas)+len(native_lines),rendered=len(items)+native_visible,sceneSeconds=round(time.perf_counter()-started,3))
 
@@ -1255,6 +1369,34 @@ def strip_toplevel_mtext_colors(text):
         out.append(c);i+=1
     return ''.join(out)
 
+def force_insert_content_color(e):
+    """Give the selected insert a private hierarchy inheriting its color."""
+    doc=e.doc
+    variants={}
+    def inherit(child):
+        child.dxf.color=0
+        child.dxf.discard('true_color')
+        if child.dxftype()=='MTEXT':
+            child.text=re.sub(r"\\[Cc][0-9]+;",'',child.text)
+        if child.dxftype()=='DIMENSION':
+            unify_dimension_color(child)
+        if child.dxftype()=='INSERT':
+            child.dxf.name=clone(child.dxf.name)
+            for attr in child.attribs:inherit(attr)
+    def clone(name):
+        if name in variants:return variants[name]
+        source=doc.blocks.get(name)
+        if source is None:return name
+        block=doc.blocks.new_anonymous_block(base_point=source.base_point)
+        variants[name]=block.name
+        for original in source:
+            child=original.copy()
+            block.add_entity(child)
+            inherit(child)
+        return block.name
+    e.dxf.name=clone(e.dxf.name)
+    for attr in e.attribs:inherit(attr)
+
 def unify_dimension_color(e):
     """Give this dimension its own geometry, inheriting the root color everywhere."""
     style=e.override()
@@ -1350,25 +1492,39 @@ def apply_arrows(e,value):
     if e.has_xdata('ALCIDE_ARROWS'):e.discard_xdata('ALCIDE_ARROWS')
     if spec is None:return []
     e.set_xdata('ALCIDE_ARROWS',[(1000,json.dumps(spec))]);return add_arrow_heads(e,spec)
-def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False):
+def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None):
     # The serializer creates many short-lived graph nodes. A single collection
     # after the verified transaction avoids repeated full scans during parsing.
     enabled=gc.isenabled()
     if enabled:gc.disable()
-    try:return _export_verified(filename,changes,dimensions,edits,layer_changes,reinforcement,backup)
+    try:return _export_verified(filename,changes,dimensions,edits,layer_changes,reinforcement,backup,selection,expected_target_hash)
     finally:
         if enabled:
             gc.enable()
             gc.collect()
 
-def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False):
+def seed_verified_conversion145(path,converted):
+    # Only the reopened and fingerprint-verified DXF may seed the next open.
+    # No global drawing state is changed and cache failure cannot fail a save.
+    import shutil
+    target=cache_dir()/(cache_key(str(path.resolve()))+'.dxf')
+    fd,temporary=tempfile.mkstemp(prefix='verified145-',suffix='.tmp',dir=target.parent)
+    os.close(fd)
+    try:
+        shutil.copyfile(converted,temporary)
+        os.replace(temporary,target)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+    return True
+
+def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None):
     # Work on a fresh copy; never mutate the source or the active document.
     from io import StringIO
     path=Path(filename)
     if path.suffix.lower() not in ('.dwg','.dxf'):raise ValueError('Choisissez DWG ou DXF.')
     if SOURCE and path.resolve()==Path(SOURCE).resolve():raise ValueError('Choisir un autre nom pour préserver le dessin source.')
     if path.suffix.lower()=='.dwg' and SOURCE and Path(SOURCE).suffix.lower()=='.dwg' and not any((changes,dimensions,edits,layer_changes,reinforcement)):
-        return {**dwg_export.copy_original(SOURCE,path,backup=backup),'dimensions':0}
+        return {**dwg_export.copy_original(SOURCE,path,backup=backup,expected_target_hash=expected_target_hash),'dimensions':0}
     if path.suffix.lower()=='.dwg' and SOURCE and Path(SOURCE).suffix.lower()=='.dwg':
         progress('Préparation de la base du DWG…')
         out=dwg_export.source_document(SOURCE)
@@ -1378,6 +1534,11 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         s=StringIO();DOC.write(s);s.seek(0);out=ezdxf.read(s)
     if 'ALCIDE_COTES' not in out.layers:out.layers.new('ALCIDE_COTES',dxfattribs={'color':3})
     if 'ALCIDE_TEXTES' not in out.layers:out.layers.new('ALCIDE_TEXTES',dxfattribs={'color':3})
+    document_line_scale=(edits or {}).get('@linetype-scale145',{}).get('documentLinetypeScale')
+    if document_line_scale is not None:
+        document_line_scale=float(document_line_scale)
+        if not math.isfinite(document_line_scale) or not 0<document_line_scale<=1e6:raise ValueError('Échelle générale des traits incorrecte.')
+        out.header['$LTSCALE']=document_line_scale
     final_locks=[]
     for name,props in (layer_changes or {}).items():
         if name not in out.layers and props.get('created'):
@@ -1385,6 +1546,9 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             out.layers.new(name,dxfattribs={'color':3})
         if name not in out.layers:continue
         layer=out.layers.get(name)
+        if props.get('created'):
+            if 'ALCIDE_LAYER_CREATED' not in out.appids:out.appids.new('ALCIDE_LAYER_CREATED')
+            layer.set_xdata('ALCIDE_LAYER_CREATED',[(1070,1)])
         if 'color' in props:
             color=props['color']
             if not re.fullmatch(r'#[0-9a-fA-F]{6}',color):raise ValueError('Couleur de calque incorrecte.')
@@ -1512,8 +1676,10 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             e=layout.add_arc(center,math.dist(center,start),math.degrees(math.atan2(start[1]-center[1],start[0]-center[0])),math.degrees(math.atan2(end[1]-center[1],end[0]-center[0])),dxfattribs=attrs)
         else:raise ValueError('Objet créé non pris en charge.')
         copies[handle]=e
+    import clipboard131
+    clipboard131.import_edits(out,edits or {},copies)
     for handle,edit in (edits or {}).items():
-        if not edit.get('source') or edit.get('deleted'):continue
+        if edit.get('clipboard131') or not edit.get('source') or edit.get('deleted'):continue
         source=out.entitydb.get(edit['source'])
         if source is None or source.get_layout() is None:continue
         e=source.copy();source.get_layout().add_entity(e);copies[handle]=e
@@ -1548,6 +1714,31 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             if weight not in (-1,-3,0,5,9,13,15,18,20,25,30,35,40,50,53,60,70,80,90,100,106,120,140,158,200,211):raise ValueError('Épaisseur d’objet incorrecte.')
             e.dxf.lineweight=weight
         if props.get('transparency')=='bylayer' and e.dxf.hasattr('transparency'):e.dxf.discard('transparency')
+    # Private block variants preserve shared definitions and non-fill attributes.
+    fill_block_variants={}
+    def fill_block_variant(name,alpha,inherited_layer,ancestors=()):
+        if name in ancestors:return name
+        key=(name,alpha,inherited_layer)
+        if key in fill_block_variants:return fill_block_variants[key]
+        source=out.blocks.get(name)
+        if source is None:return name
+        prepared=[];changed=False
+        for original in source:
+            child=original.copy();effective=child.dxf.get('layer','0')
+            if effective=='0':effective=inherited_layer
+            locked=out.layers.get(effective).is_locked() if effective in out.layers else False
+            if not locked:
+                if child.dxftype()=='INSERT':
+                    replacement=fill_block_variant(child.dxf.name,alpha,effective,ancestors+(name,))
+                    changed|=replacement!=child.dxf.name;child.dxf.name=replacement
+                elif child.dxftype() in ('HATCH','SOLID','TRACE','WIPEOUT') or child.dxftype()=='LWPOLYLINE' and child.has_width or child.dxftype()=='POLYLINE' and (child.dxf.get('default_start_width',0) or child.dxf.get('default_end_width',0) or any(v.dxf.get('start_width',0) or v.dxf.get('end_width',0) for v in child.vertices)):
+                    child.transparency=alpha/100;changed=True
+            prepared.append(child)
+        if not changed:fill_block_variants[key]=name;return name
+        block=out.blocks.new_anonymous_block()
+        for child in prepared:block.add_entity(child)
+        fill_block_variants[key]=block.name
+        return block.name
     palette_colors={r['id']:r['paletteColor'] for r in reinforcement or [] if r.get('paletteColor')}
     for handle,edit in (edits or {}).items():
         e=copies.get(handle) or out.entitydb.get(handle)
@@ -1561,6 +1752,12 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         props=edit.get('props',{})
         if handle in palette_colors:props={**props,'color':palette_colors[handle]}
         apply_properties(e,props)
+        if e.dxftype()=='INSERT' and props.get('forceBlockColor') and 'color' in props:
+            force_insert_content_color(e)
+        if e.dxftype()=='INSERT' and 'blockFillTransparency' in props:
+            alpha=float(props['blockFillTransparency'])
+            if not math.isfinite(alpha) or not 0<=alpha<=90:raise ValueError('Transparence des remplissages du bloc incorrecte.')
+            e.dxf.name=fill_block_variant(e.dxf.name,alpha,e.dxf.layer)
         if edit.get('drawing'):e.transparency=0
         if edit.get('dimensionStyle'):
             if e.dxftype()!='DIMENSION':raise ValueError('Réglages réservés aux cotes.')
@@ -1661,7 +1858,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             if pattern in ACAD_HATCH_PATTERNS:acad_hatch_fill(fill,pattern,gap,angle)
             else:fill.set_pattern_fill(pattern,angle=angle,scale=1,definition=alcide_hatch_definition(pattern,gap))
             for line in fill.pattern.lines:
-                line.base_point=line.base_point+ezdxf.math.Vec2(edit.get('dx',0),edit.get('dy',0))
+                line.base_point=line.base_point+ezdxf.math.Vec2(props.get('fillOrigin',(0,0)))+ezdxf.math.Vec2(edit.get('dx',0),edit.get('dy',0))
             background=props.get('fillBackgroundColor')
             if background:
                 if not re.fullmatch(r'#[0-9a-fA-F]{6}',background):raise ValueError('Couleur de fond incorrecte.')
@@ -1718,6 +1915,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             if 'ALCIDE_BALANCED' not in out.appids:out.appids.new('ALCIDE_BALANCED')
             dim.dimension.set_xdata('ALCIDE_BALANCED',[(1000,str(d.get('chainId',''))),(1040,float(d['balancedValue']))])
         dim.render()
+        if selection is not None and d.get('id'):copies[d['id']]=dim.dimension
         owner=d.get('chainId') or d.get('id')
         props={**(edits or {}).get(owner,{}).get('props',{}),**(edits or {}).get(d.get('id'),{}).get('props',{})}
         apply_properties(dim.dimension,props)
@@ -1773,10 +1971,24 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         # Allplan may ignore SORTENTSTABLE: mirror it in physical entity order.
         layout.entity_space.entities[:]=all_entities
         layout.set_redraw_order([(e.dxf.handle,format(i+1,'X')) for i,e in enumerate(all_entities)])
+    if selection is not None:
+        keep=set()
+        for handle in selection:
+            e=copies.get(handle) or out.entitydb.get(handle)
+            if e is not None and e.is_alive:keep.add(e.dxf.handle)
+            keep.update(e.dxf.handle for e in draw_order_companions.get(handle,[]) if e.is_alive)
+            for owner,es in annotation_groups:
+                if owner==handle:keep.update(e.dxf.handle for e in es if e.is_alive)
+            for (owner,_),es in chain_groups.items():
+                if owner==handle:keep.update(e.dxf.handle for e in es if e.is_alive)
+        if not keep:raise ValueError('Aucun objet exportable dans la sélection.')
+        for layout in out.layouts:
+            for e in list(layout):
+                if e.dxf.handle not in keep:layout.delete_entity(e)
     path=Path(filename)
     if path.suffix.lower()=='.dwg':
         for layer in final_locks:layer.lock()
-        return {**dwg_export.publish(out,path,backup=backup,progress=progress),'dimensions':len(dimensions)}
+        return {**dwg_export.publish(out,path,backup=backup,progress=progress,after_publish=seed_verified_conversion145,expected_target_hash=expected_target_hash),'dimensions':len(dimensions)}
     if SOURCE and path.resolve()==Path(SOURCE).resolve():raise ValueError('Choisir un autre nom pour préserver le dessin source.')
     for layer in final_locks:layer.lock()
     with tempfile.TemporaryDirectory(prefix='alcide-dxf-export-') as folder:
@@ -1853,12 +2065,21 @@ def dispatch(r):
     if cmd=='fonts':return font_choices()
     if cmd=='clear-cache':return clear_cache()
     if cmd=='close':
-        DOCUMENTS.pop(r['docId'],None)
+        doc_id=r['docId']
+        DOCUMENTS.pop(doc_id,None)
+        if ACTIVE==doc_id:DOC,SOURCE,WARNINGS,ACTIVE=None,None,[],None
+        if not DOCUMENTS:dwg_export.release_source_cache()
         return True
     entry=activate(r.get('docId','default'))
+    if cmd=='warm-save-source':
+        if Path(entry['source']).suffix.lower()!='.dwg' or any('LibreDWG' in w for w in entry.get('warnings',[])):return False
+        return dwg_export.warm_source_conversion(entry['converted'])
     if cmd=='freeze-source':
         frozen=Path(r['path']).resolve()
         if not frozen.is_file() or frozen.suffix.lower() not in ('.dwg','.dxf'):raise ValueError('Base de sauvegarde invalide.')
+        if frozen.suffix.lower()=='.dwg' and not any('LibreDWG' in w for w in entry.get('warnings',[])):
+            try:dwg_export.register_source_conversion(frozen,entry['converted'])
+            except (OSError,ValueError):pass  # Normal conversion remains the safe fallback.
         SOURCE=str(frozen);entry['source']=SOURCE
         return SOURCE
     if cmd=='layers':return layer_info()
@@ -1870,6 +2091,17 @@ def dispatch(r):
         require_doc(full=True)
         return import_reconstruction.analyze(DOC,r.get('layout','Model'),r.get('convention','allplan'),float(r.get('scale',0)),r.get('ignored',[]),bool(r.get('suggestionsOnly',False)))
     if cmd=='decompose-all':return decompose_all(r.get('changes',{}),r.get('dimensions',[]),r.get('edits',{}),r.get('layerChanges',{}))
+    if cmd in ('dimension-preview','hatch-preview','text-preview') and any(x.get('clipboard131') for x in r.get('requests',[])):
+        from io import StringIO
+        fn={'dimension-preview':preview_dimension_styles,'hatch-preview':preview_hatches,'text-preview':preview_texts}[cmd];result=[];previous=DOC
+        try:
+            for spec in r['requests']:
+                foreign=spec.get('clipboard131')
+                DOC=ezdxf.read(StringIO(foreign['dxf'])) if foreign else previous
+                if foreign:spec={**spec,'source':foreign['handle']}
+                result.extend(fn([spec]))
+            return result
+        finally:DOC=previous
     if cmd=='dimension-preview':return preview_dimension_styles(r.get('requests',[]))
     if cmd=='hatch-preview':return preview_hatches(r.get('requests',[]))
     if cmd=='text-preview':return preview_texts(r.get('requests',[]))
@@ -1877,7 +2109,13 @@ def dispatch(r):
         cached=scene_path(entry['key'],r['layout'])
         if cached.exists():return dict(sceneFile=str(cached),cacheHit=True,docId=ACTIVE)
         value=scene(r['layout']);return dict(sceneFile=write_scene(value,entry['key']),cacheHit=False,docId=ACTIVE)
-    if cmd=='export':return export(r['path'],r.get('changes',{}),r.get('dimensions',[]),r.get('edits',{}),r.get('layerChanges',{}),r.get('reinforcement',[]),backup=bool(r.get('backup',False)))
+    if cmd=='clipboard-scale131':
+        import clipboard131
+        return clipboard131.rescale(sys.modules[__name__],r)
+    if cmd=='clipboard-copy131':
+        import clipboard131
+        return clipboard131.capture(sys.modules[__name__],r)
+    if cmd=='export':return export(r['path'],r.get('changes',{}),r.get('dimensions',[]),r.get('edits',{}),r.get('layerChanges',{}),r.get('reinforcement',[]),backup=bool(r.get('backup',False)),expected_target_hash=r.get('expectedTargetHash'))
     raise ValueError('Commande inconnue : '+cmd)
 
 if __name__=='__main__':

@@ -12,7 +12,7 @@
  window.addEventListener('contextmenu',ev=>{
   if(ev.target!==overlay||busy||!scene)return;
   const copyPending=typeof pendingTransformSelection!=='undefined'&&pendingTransformSelection==='copy',copyBase=tool==='copy'&&!points.length;
-  if(!window.selectionAddMode&&(copyPending||copyBase)){
+  if(!window.selectionAddMode&&(copyPending||copyBase||window.ToolSelectionFlow?.state())){
    ev.preventDefault();ev.stopImmediatePropagation();
    if(copyBase){setTool('select');pendingTransformSelection='copy';}
    toggle(true);drawOverlay();overlay.focus({preventScroll:true});return;

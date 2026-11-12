@@ -2,7 +2,7 @@ function objectLineDash(e,p){
  if(p?.detailKind==='text'||e.nativeText)return [];
  const edit=edits[e.id]||{},override=edit.props?.linetype;
  // Imported paths already contain their dash geometry until rebuilt or restyled.
- if(!override&&!edit.geometry&&!edit.drawing&&!layerChanges[edit.props?.layer||e.layer]?.linetype)return [];
+ if(!override&&!edit.geometry&&!edit.drawing&&!layerChanges[edit.props?.layer||e.layer]?.linetype){const ratio=window.DocumentLineScale145?.ratio(p)||1,scale=edit.props?.linetypeScale;if(p?.nativeDash)return p.nativeDash.map(v=>v*ratio*(scale==null?1:scale/(e.linetypeScale||1)));if(scale==null)return [];}
  const raw=override||e.linetype||'BYLAYER',type=(raw.toUpperCase()==='BYLAYER'?(layerSettings(edit.props?.layer||e.layer)?.linetype||baseLayer(e.layer)?.linetype||'CONTINUOUS'):raw).toUpperCase();
  const table=scene?.linetypes||{},entry=Object.entries(table).find(([name])=>name.toUpperCase()===type)?.[1];
  let dash=entry||window.LinePatterns107?.find(x=>x.name===type)?.pattern||({DASHED:[.9,.5],DOTTED:[.02,.48],CENTER:[1.2,.4,.2,.4]})[type];
@@ -12,7 +12,7 @@ function objectLineDash(e,p){
   const segs=paths.filter(p=>p.length===2);if(segs.length>=2){const lens=segs.map(p=>cadDistance(...p)).filter(v=>v>1e-8).sort((a,b)=>a-b),gaps=segs.slice(1).map((p,i)=>cadDistance(segs[i][1],p[0])).filter(v=>v>1e-8).sort((a,b)=>a-b);if(lens.length&&gaps.length)dash=[lens[Math.floor(lens.length/2)],gaps[Math.floor(gaps.length/2)]];}
  }
  const scale=edit.props?.linetypeScale??e.linetypeScale??1;
- return (dash||[]).map(v=>Math.max(1e-8,Math.abs(v)*scale));
+ return (dash||[]).map(v=>Math.max(1e-8,Math.abs(v)*scale*(entry?(window.DocumentLineScale145?.ratio()||1):(window.DocumentLineScale145?.current()||1))));
 }
 // Native 2D geometry, with one shared style for creation and targeted editing.
 let drawingMode=null,drawingPaletteKey='',drawingTouched=new Set();
