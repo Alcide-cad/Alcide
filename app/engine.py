@@ -123,6 +123,12 @@ def font_family(doc,style):
 
 def apply_text_style(e,values):
     if e.dxftype() not in ('TEXT','MTEXT'):raise ValueError('Choisissez un texte.')
+    if 'textFrameWidth' in values:
+        frame_width=float(values['textFrameWidth'])
+        if not math.isfinite(frame_width) or frame_width<0 or frame_width>1e12:raise ValueError('Largeur du cadre de texte incorrecte.')
+        if e.dxftype()=='TEXT' and frame_width>0 and not values.get('mtext'):
+            values=dict(values)
+            values['mtext']=e.dxf.text.replace('\\','\\\\').replace('{','\\{').replace('}','\\}')
     if e.dxftype()=='TEXT' and values.get('mtext'):
         from ezdxf.entities import factory
         from ezdxf.entities.dxfgfx import replace_entity
@@ -166,6 +172,7 @@ def apply_text_style(e,values):
         if not math.isfinite(width) or width<=0 or width>20:raise ValueError('Facteur de largeur : choisir entre 0 et 20.')
         if e.dxftype()=='TEXT':e.dxf.width=width
         else:e.text='\\W'+str(width)+';'+re.sub(r'\\W[0-9.+-]+;','',e.text)
+    if 'textFrameWidth' in values and e.dxftype()=='MTEXT':e.dxf.width=float(values['textFrameWidth'])
     if 'alignment' in values:
         value=str(values['alignment']);horizontal,vertical=value.split('-')
         if e.dxftype()=='MTEXT':e.dxf.attachment_point={'top':0,'middle':3,'bottom':6}[vertical]+{'left':1,'center':2,'right':3}[horizontal]
@@ -564,7 +571,7 @@ def metadata(e, layout, doc):
         if typ=='TEXT':alignment={0:'left',1:'center',2:'right'}.get(d.get('halign',0),'left')+'-'+{0:'bottom',1:'bottom',2:'middle',3:'top'}.get(d.get('valign',0),'bottom')
         else:alignment=['left-top','center-top','right-top','left-middle','center-middle','right-middle','left-bottom','center-bottom','right-bottom'][max(0,min(8,d.get('attachment_point',1)-1))]
         width_match=re.search(r'\\W([0-9.]+);',e.text) if typ=='MTEXT' else None
-        m['nativeText']={'fontFace':font_family(doc,d.style),'height':m['height'],'angle':e.get_rotation() if typ=='MTEXT' else float(d.get('rotation',0)),'widthFactor':float(width_match.group(1)) if width_match else float(d.get('width',1)) if typ=='TEXT' else 1,'alignment':alignment,'text':m['text'],'background':bool(d.get('bg_fill',0)&1) if typ=='MTEXT' else False}
+        m['nativeText']={'fontFace':font_family(doc,d.style),'height':m['height'],'angle':e.get_rotation() if typ=='MTEXT' else float(d.get('rotation',0)),'widthFactor':float(width_match.group(1)) if width_match else float(d.get('width',1)) if typ=='TEXT' else 1,'textFrameWidth':float(d.get('width',0)) if typ=='MTEXT' else 0,'alignment':alignment,'text':m['text'],'background':bool(d.get('bg_fill',0)&1) if typ=='MTEXT' else False}
         if typ=='MTEXT' and re.search(r'\\[fFLOKHcC]',e.text):m['nativeText']['mtext']=e.text
         tags['1']=m['text']
     if typ=='DIMENSION':
@@ -1495,13 +1502,20 @@ def apply_arrows(e,value):
 def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None):
     # The serializer creates many short-lived graph nodes. A single collection
     # after the verified transaction avoids repeated full scans during parsing.
-    enabled=gc.isenabled()
+    started=time.perf_counter();enabled=gc.isenabled();result=None
     if enabled:gc.disable()
-    try:return _export_verified(filename,changes,dimensions,edits,layer_changes,reinforcement,backup,selection,expected_target_hash)
+    try:
+        result=_export_verified(filename,changes,dimensions,edits,layer_changes,reinforcement,backup,selection,expected_target_hash)
+        return result
     finally:
+        collected=time.perf_counter()
         if enabled:
             gc.enable()
             gc.collect()
+        if isinstance(result,dict):
+            result.setdefault('timings',{})['collectGarbage']=round(time.perf_counter()-collected,4)
+            result['timings']['engineTransaction']=round(time.perf_counter()-started,4)
+
 
 def seed_verified_conversion145(path,converted):
     # Only the reopened and fingerprint-verified DXF may seed the next open.
@@ -1520,6 +1534,7 @@ def seed_verified_conversion145(path,converted):
 def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None):
     # Work on a fresh copy; never mutate the source or the active document.
     from io import StringIO
+    prepared=time.perf_counter()
     path=Path(filename)
     if path.suffix.lower() not in ('.dwg','.dxf'):raise ValueError('Choisissez DWG ou DXF.')
     if SOURCE and path.resolve()==Path(SOURCE).resolve():raise ValueError('Choisir un autre nom pour préserver le dessin source.')
@@ -1532,6 +1547,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         require_doc(full=True);auditor=DOC.audit()
         if auditor.has_errors:raise ValueError('Le DXF source présente des erreurs de structure non réparables.')
         s=StringIO();DOC.write(s);s.seek(0);out=ezdxf.read(s)
+    preparation_seconds=time.perf_counter()-prepared;applied=time.perf_counter()
     if 'ALCIDE_COTES' not in out.layers:out.layers.new('ALCIDE_COTES',dxfattribs={'color':3})
     if 'ALCIDE_TEXTES' not in out.layers:out.layers.new('ALCIDE_TEXTES',dxfattribs={'color':3})
     document_line_scale=(edits or {}).get('@linetype-scale145',{}).get('documentLinetypeScale')
@@ -1576,7 +1592,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         if not a or edit.get('deleted'):continue
         layout=out.layouts.get(a.get('layout','Model'))
         text=str(a['text']);attrs={'layer':'ALCIDE_TEXTES','color':256,'insert':a['position'],'rotation':float(a.get('angle',0))}
-        if '\n' in text or a.get('mtext'):
+        if '\n' in text or a.get('mtext') or a.get('textFrameWidth',0)>0:
             escaped=str(a['mtext']) if a.get('mtext') else text.replace('\\','\\\\').replace('{','\\{').replace('}','\\}').replace('\n','\\P')
             height=float(a['height']);angle=math.radians(float(a.get('angle',0)))
             attrs['char_height']=height;attrs['attachment_point']=1
@@ -1584,7 +1600,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             e=layout.add_mtext(escaped,dxfattribs=attrs)
         else:
             attrs['height']=float(a['height']);e=layout.add_text(text,dxfattribs=attrs)
-        apply_text_style(e,{**{k:a[k] for k in ('fontFace','widthFactor','alignment') if k in a},'keepInline':bool(a.get('mtext'))})
+        apply_text_style(e,{**{k:a[k] for k in ('fontFace','widthFactor','alignment','textFrameWidth') if k in a},'keepInline':bool(a.get('mtext'))})
         copies[handle]=e
         members=[e]
         axis=a.get('axis')
@@ -1599,7 +1615,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             for position in axis.get('textPositions',[])[1:]:
                 attrs2=dict(attrs);attrs2['insert']=[position[0]+dx,position[1]+dy]
                 extra=layout.add_text(text,dxfattribs=attrs2)
-                apply_text_style(extra,{k:a[k] for k in ('fontFace','widthFactor','alignment') if k in a})
+                apply_text_style(extra,{k:a[k] for k in ('fontFace','widthFactor','alignment','textFrameWidth') if k in a})
                 members.append(extra)
         else:
             for points in a.get('decorations',[]):
@@ -1988,7 +2004,10 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
     path=Path(filename)
     if path.suffix.lower()=='.dwg':
         for layer in final_locks:layer.lock()
-        return {**dwg_export.publish(out,path,backup=backup,progress=progress,after_publish=seed_verified_conversion145,expected_target_hash=expected_target_hash),'dimensions':len(dimensions)}
+        application_seconds=time.perf_counter()-applied
+        result={**dwg_export.publish(out,path,backup=backup,progress=progress,after_publish=seed_verified_conversion145,expected_target_hash=expected_target_hash),'dimensions':len(dimensions)}
+        result['timings'].update(prepareSource=round(preparation_seconds,4),applyChanges=round(application_seconds,4))
+        return result
     if SOURCE and path.resolve()==Path(SOURCE).resolve():raise ValueError('Choisir un autre nom pour préserver le dessin source.')
     for layer in final_locks:layer.lock()
     with tempfile.TemporaryDirectory(prefix='alcide-dxf-export-') as folder:

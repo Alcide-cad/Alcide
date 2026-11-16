@@ -26,6 +26,8 @@ dialog label{font-size:var(--ui-font)}
 #ribboncontent .ribbon-group.rf-collapsed.rf-open>:not(.rf-toggle):not(small){padding:4px!important;gap:2px!important}
 `;document.head.append(css);
  // valeurs encore trop longues : infobulle avec le texte complet
- function tips(){for(const el of document.querySelectorAll(`${P} select,${R} select,#hatch-cards select`)){const t=el.selectedOptions?.[0]?.text||'';if(t&&el.title!==t)el.title=t;}}
+ let tipSelects=null;
+ new MutationObserver(records=>{if(records.some(m=>[...m.addedNodes,...m.removedNodes].some(n=>n.nodeType===1&&(n.matches?.('select')||n.querySelector?.('select')))))tipSelects=null;}).observe(document.body,{childList:true,subtree:true});
+ function tips(){for(const el of (tipSelects||(tipSelects=[...document.querySelectorAll(`${P} select,${R} select,#hatch-cards select`)]))){const t=el.selectedOptions?.[0]?.text||'';if(t&&el.title!==t)el.title=t;}}
  document.addEventListener('change',tips,true);const draw=drawOverlay;let q=0;drawOverlay=function(...a){const r=draw.apply(this,a);if(!q){q=requestAnimationFrame(()=>{q=0;tips();});}return r;};
 })();

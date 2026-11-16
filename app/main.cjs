@@ -9,6 +9,7 @@ app.commandLine.appendSwitch('lang','fr');
 app.setPath('userData',app.commandLine.getSwitchValue('user-data-dir')||path.join(app.getPath('appData'),'DWG-Alcide'));
 const detachedSessionArgument=process.argv.find(a=>a.startsWith('--alcide-detached-session='));let detachedInitial=null,detachedTransferFile=null;
 if(detachedSessionArgument){detachedTransferFile=path.resolve(detachedSessionArgument.split('=').slice(1).join('='));const allowed=path.join(app.getPath('temp'),'ALCIDE-detached')+path.sep;if(!detachedTransferFile.startsWith(allowed))throw Error('Session détachée invalide.');detachedInitial=JSON.parse(fs.readFileSync(detachedTransferFile,'utf8'));app.setPath('userData',path.join(path.dirname(detachedTransferFile),'profile'));}
+const libraryStorage163=require('./library-folder163.cjs')({app,ipcMain,dialog,BrowserWindow,shell});
 const recoveryHistory=require('./recovery09-main.cjs')({app,ipcMain,sources});
 const recentPath=path.join(app.commandLine.getSwitchValue('user-data-dir')||path.join(app.getPath('appData'),'DWG-Alcide'),'recent-files.json');
 function recentFiles(){try{const entries=JSON.parse(fs.readFileSync(recentPath,'utf8'));return Array.isArray(entries)?entries.filter(e=>typeof e.path==='string'&&/\.(dwg|dxf|alcide|pdf)$/i.test(e.path)).slice(0,20):[];}catch{return [];}}
@@ -56,7 +57,10 @@ app.whenReady().then(async()=>{
  startWorker();
  const action=name=>()=>win?.webContents.send('menu-action',name);
  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&Fichier',submenu:[{label:'&Nouveau dessin',accelerator:'Ctrl+N',click:action('new')},{label:'&Ouvrir…',accelerator:'Ctrl+O',click:action('open')},{type:'separator'},{label:'Importer un PDF vectoriel…',click:action('importpdf')},{label:'&Enregistrer',accelerator:'Ctrl+S',click:action('save')},{label:'Enregistrer &sous…',accelerator:'Ctrl+Shift+S',click:action('saveas')},{label:'Enregistrer un projet ALCIDE…',click:action('saveproject')},{label:'Exporter en DXF…',accelerator:'Ctrl+E',click:action('export')},{label:'Charger un LISP…',click:action('lisp')},{type:'separator'},{label:'Fermer le dessin',accelerator:'Ctrl+W',click:action('close')},{label:'Quitter',accelerator:'Alt+F4',click:()=>win?.close()}]},{label:'&Édition',submenu:[{label:'Annuler',click:action('undo')},{label:'Rétablir',click:action('redo')},{type:'separator'},{label:'Paramètres…',click:action('settings')},{label:'Raccourcis clavier…',click:action('shortcuts')}]},{label:'&Aide',submenu:[{label:'Aide et version…',accelerator:'F1',click:action('help')},{label:'Mises à jour…',click:action('updates')}]}]));
- win=new BrowserWindow({width:1440,height:940,minWidth:1050,minHeight:680,title:'ALCIDE',icon:path.join(__dirname,'app-icon.ico'),backgroundColor:'#111820',autoHideMenuBar:false,webPreferences:{backgroundThrottling:false,preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ const screen=require('electron').screen,initialArea=screen.getPrimaryDisplay().workArea;
+ win=new BrowserWindow({width:Math.min(1440,initialArea.width),height:Math.min(940,initialArea.height),minWidth:Math.min(640,initialArea.width),minHeight:Math.min(520,initialArea.height),title:'ALCIDE',icon:path.join(__dirname,'app-icon.ico'),backgroundColor:'#111820',autoHideMenuBar:false,webPreferences:{backgroundThrottling:false,preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ function updateWindowMinimum(){if(win?.isDestroyed())return;const area=screen.getDisplayMatching(win.getBounds()).workArea;win.setMinimumSize(Math.min(640,area.width),Math.min(520,area.height));}
+ win.on('moved',updateWindowMinimum);screen.on('display-metrics-changed',updateWindowMinimum);win.on('closed',()=>screen.removeListener('display-metrics-changed',updateWindowMinimum));
  if(!detachedInitial)win.maximize();
  win.setMenuBarVisibility(false);
  if(detachedInitial)win.once('ready-to-show',()=>{if(!win?.isDestroyed()){if(win.isMinimized())win.restore();win.show();win.focus();}});
@@ -126,6 +130,7 @@ async function saveFromWindow(event,data,dxf=false){
  try{return await saveDrawing(data,dxf);}finally{savingWindows.delete(sender);}
 }
 async function saveDrawing(data,dxf=false){
+ const started=performance.now(),hostTimings={};let phase=started;const mark=name=>{const now=performance.now();hostTimings[name]=Math.round(now-phase)/1000;phase=now;};
  const source=sources.get(data.docId);if(!source)throw Error('Dessin fermé ou inconnu.');
  const current=data.drawingPath&&path.extname(data.drawingPath).toLowerCase()==='.dwg'?path.resolve(data.drawingPath):null;
  let target=!dxf&&!data.saveAs?current:null;
@@ -137,9 +142,11 @@ async function saveDrawing(data,dxf=false){
  const baseline=drawingDiskVersions.get(data.docId);
  const expectedTargetHash=baseline&&diskPathKey(baseline.path)===diskPathKey(target)?baseline.hash:null;
  if(expectedTargetHash&&await drawingDiskHash(target).catch(()=>null)!==expectedTargetHash)throw externalDrawingError();
+ mark('chooseTargetAndCheckDisk');
  // Freeze every affected base before replacing a source opened in this session.
  await freezeSaveSource(data.docId);
  for(const [id,original] of sources)if(id!==data.docId&&path.resolve(original).toLowerCase()===target.toLowerCase())await freezeSaveSource(id);
+ mark('freezeSource');
  const savingWorker=worker, os=require('node:os');
  let priorityState;
  if(process.platform==='win32'&&savingWorker?.pid){
@@ -163,11 +170,13 @@ async function saveDrawing(data,dxf=false){
    }
   }
  }
+ mark('engineRpc');
  if(!result?.path||!result.verified||!fs.statSync(result.path).isFile()||!fs.statSync(result.path).size)throw Error('Le dessin enregistré est absent ou non vérifié.');
  if(!dxf&&!result.recovery){const stat=fs.statSync(result.path);drawingDiskVersions.set(data.docId,{path:result.path,hash:result.publishedHash||await drawingDiskHash(result.path)});savedDrawingStats122.set(data.docId,{path:result.path,size:stat.size,mtimeMs:stat.mtimeMs});await recoveryHistory.recordVerified(data.docId,result.path).catch(()=>{});}
  rememberDialogFolder(result.recovery?result.requestedPath:result.path);
  if(result.recovery)await dialog.showMessageBox(win,{type:'warning',title:'Copie locale de secours',message:'Le dossier demandé refuse l’écriture. Le fichier précédent est conservé.',detail:'Une copie vérifiée est disponible ici : '+result.path,buttons:['Fermer']});
- return {...result,sourceBase:sources.get(data.docId)};
+ mark('recordVerifiedSave');hostTimings.total=Math.round(performance.now()-started)/1000;
+ return {...result,hostTimings,sourceBase:sources.get(data.docId)};
 }
 ipcMain.handle('save-drawing',(event,data)=>saveFromWindow(event,data));
 ipcMain.handle('export-dxf',(event,data)=>saveFromWindow(event,data,true));
@@ -214,7 +223,7 @@ ipcMain.handle('detach-tab',async(event,data)=>{
 });
 ipcMain.handle('detached-ready',(event,result)=>{if(!detachedTransferFile||event.sender!==win?.webContents)return;if(result?.error){fs.writeFileSync(detachedTransferFile+'.error',result.error,'utf8');return;}if(!win||win.isDestroyed()){fs.writeFileSync(detachedTransferFile+'.error','La fenêtre détachée a été fermée.','utf8');return;}if(win.isMinimized())win.restore();win.show();win.focus();if(!win.isVisible()){fs.writeFileSync(detachedTransferFile+'.error','La fenêtre détachée n’est pas visible.','utf8');return;}if(detachedInitial.isNew&&result.docId)sources.get(result.docId)&&newDrawingSources.add(sources.get(result.docId));fs.writeFileSync(detachedTransferFile+'.ready',JSON.stringify({pid:process.pid,visible:win.isVisible(),bounds:win.getBounds(),...result}),'utf8');});
 
-ipcMain.handle('detail-library-export',async(event,data)=>{const text=JSON.stringify(data,null,2);if(!data||data.format!=='ALCIDE-DETAIL-LIBRARY'||text.length>10000000)throw Error('Bibliothèque invalide ou trop volumineuse.');const owner=BrowserWindow.fromWebContents(event.sender)||win,r=await dialog.showSaveDialog(owner,{title:'Exporter la bibliothèque de détails',defaultPath:path.join(app.getPath('documents'),'Bibliotheque-ALCIDE.json'),filters:[{name:'Bibliothèque ALCIDE',extensions:['json']}]});if(r.canceled)return null;await fs.promises.writeFile(r.filePath,text,'utf8');return r.filePath;});
+ipcMain.handle('detail-library-export',async(event,data)=>{const text=JSON.stringify(data,null,2);if(!data||data.format!=='ALCIDE-DETAIL-LIBRARY'||text.length>10000000)throw Error('Bibliothèque invalide ou trop volumineuse.');const owner=BrowserWindow.fromWebContents(event.sender)||win,r=await dialog.showSaveDialog(owner,{title:'Exporter la bibliothèque de détails',defaultPath:path.join(libraryStorage163.folder()||app.getPath('documents'),'Bibliotheque-ALCIDE.json'),filters:[{name:'Bibliothèque ALCIDE',extensions:['json']}]});if(r.canceled)return null;await fs.promises.writeFile(r.filePath,text,'utf8');return r.filePath;});
 ipcMain.handle('detail-library-import',async(event)=>{const owner=BrowserWindow.fromWebContents(event.sender)||win,r=await dialog.showOpenDialog(owner,{title:'Importer une bibliothèque de détails',filters:[{name:'Bibliothèque ALCIDE',extensions:['json']}],properties:['openFile']});if(r.canceled)return null;const file=r.filePaths[0],stat=await fs.promises.stat(file);if(stat.size>10000000)throw Error('Bibliothèque trop volumineuse.');return JSON.parse(await fs.promises.readFile(file,'utf8'));});
 
 ipcMain.handle('app-version',()=>app.getVersion());

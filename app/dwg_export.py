@@ -46,6 +46,7 @@ def convert(source, target, kind, assets=()):
 # still reads a fresh document, so edits can never accumulate on this baseline.
 _SOURCE_CACHE=None
 _SOURCE_CACHE_FILES={}
+_SOURCE_WARM_JOBS={}
 _SOURCE_MEMORY_KEY=None
 _SOURCE_MEMORY_BYTES=None
 _WARM_EXECUTOR=ThreadPoolExecutor(max_workers=1,thread_name_prefix='alcide-save-cache')
@@ -74,6 +75,7 @@ def release_source_cache():
     if _WARM_JOB is not None:_WARM_JOB[1].cancel()
     _SOURCE_MEMORY_KEY=_SOURCE_MEMORY_BYTES=_WARM_JOB=None
     _SOURCE_CACHE_FILES.clear()
+    _SOURCE_WARM_JOBS.clear()
     if _SOURCE_CACHE is not None:
         _SOURCE_CACHE.cleanup()
         _SOURCE_CACHE=None
@@ -97,13 +99,12 @@ def register_source_conversion(source, converted):
     converted=Path(converted)
     if not converted.is_file():return False
     key=source_key(source)
-    if _WARM_JOB and _WARM_JOB[1].done() and _WARM_JOB[0]==_conversion_identity(converted):
-        _,future=_WARM_JOB
-        _WARM_JOB=None
-        try:
-            blob=future.result()
-            if blob is not None:_SOURCE_MEMORY_KEY,_SOURCE_MEMORY_BYTES=key,blob
-        except Exception:pass  # The regular conversion remains available.
+    if _WARM_JOB and _WARM_JOB[0]==_conversion_identity(converted):
+        # Retain the in-flight preparation too. The first save joins this job
+        # instead of parsing the same immutable DXF a second time concurrently.
+        _SOURCE_WARM_JOBS[key]=_WARM_JOB[1]
+        if _WARM_JOB[1].done():_WARM_JOB=None
+    while len(_SOURCE_WARM_JOBS)>3:_SOURCE_WARM_JOBS.pop(next(iter(_SOURCE_WARM_JOBS)))
     if key in _SOURCE_CACHE_FILES:return True
     if _SOURCE_CACHE is None:_SOURCE_CACHE=tempfile.TemporaryDirectory(prefix='alcide-save-source-')
     target=Path(_SOURCE_CACHE.name)/(uuid.uuid4().hex+'.dxf')
@@ -115,6 +116,12 @@ def register_source_conversion(source, converted):
 def source_document(source):
     global _SOURCE_CACHE,_SOURCE_MEMORY_KEY,_SOURCE_MEMORY_BYTES
     source=Path(source).resolve();key=source_key(source)
+    future=_SOURCE_WARM_JOBS.pop(key,None)
+    if future is not None:
+        try:
+            blob=future.result()
+            if blob is not None:_SOURCE_MEMORY_KEY,_SOURCE_MEMORY_BYTES=key,blob
+        except Exception:pass  # Preparation failure keeps the regular reader available.
     if key==_SOURCE_MEMORY_KEY and _SOURCE_MEMORY_BYTES is not None:
         try:return pickle.loads(_SOURCE_MEMORY_BYTES)
         except Exception:_SOURCE_MEMORY_KEY=None;_SOURCE_MEMORY_BYTES=None
@@ -189,6 +196,13 @@ def fingerprint(doc):
         if e.dxftype()=='LWPOLYLINE':data['vertices']=[list(p) for p in e.get_points()]
         if e.dxftype()=='MTEXT':
             data['content']=e.text;data['rotation']=e.get_rotation()%360
+        if typ=='OLE2FRAME':
+            # The embedded document and its placement are opaque to normal DXF
+            # attributes; validate them explicitly before publishing a DWG.
+            payload=e.binary_data()
+            data['ole_payload']={'bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest()}
+            tags=e.acdb_ole2frame
+            data['ole_frame']={str(code):value(tags.get_first_value(code,None)) if tags is not None else None for code in (10,11,70,71,72,73)}
         if e.dxftype()=='HATCH':
             data['background_color']=value(e.bgcolor)
             boundaries=[]

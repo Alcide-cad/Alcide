@@ -1,0 +1,51 @@
+/* One adaptive layout; controls retain their original handlers and state. */
+#workspace-more,.responsive-panel-close{display:none}
+#workspace-more-menu{position:fixed;inset:auto;margin:0;padding:10px;width:240px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 80px);overflow:auto;border:1px solid var(--border,#658092);border-radius:10px;background:var(--panel,#20313d);color:var(--text,#e6edf3);box-shadow:0 8px 30px #0007}
+#workspace-more-menu:popover-open{display:grid;gap:6px}
+#workspace-more-menu>button{width:100%!important;justify-content:flex-start!important;min-height:32px!important;height:auto!important;text-align:left}
+#workspace-more-menu .autohide{display:flex!important;padding:8px 2px}
+@media(max-width:1100px){
+ html.workspace-narrow body #ribbon .ribbon-topbar{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-rows:28px 30px!important;height:58px!important;min-height:58px!important;max-height:58px!important;gap:0!important}
+ html.workspace-narrow body #ribbon .ribbon-topbar>.ribbon-quick-access{grid-row:1;grid-column:1;justify-self:start;border-right:0}
+ html.workspace-narrow body #ribbon .ribbon-topbar>.ribbon-fold{grid-row:1;grid-column:2;justify-self:end;gap:6px!important;padding:0 6px!important}
+ html.workspace-narrow body #ribbon .ribbon-topbar>.ribbon-tabs{grid-row:2;grid-column:1/-1;width:100%!important;max-width:100%!important;height:30px!important;min-height:30px!important;max-height:30px!important;padding:0 4px!important;gap:1px!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none!important}
+ html.workspace-narrow body #ribbon .ribbon-topbar>.ribbon-tabs [role=tab]:not([hidden]){flex:1 0 auto!important;width:auto!important;min-width:0!important;max-width:none!important;height:30px!important;min-height:30px!important;padding:4px 8px!important;font-size:12px!important;text-align:center}
+ #ribbon .ribbon-scroll-nav{display:none!important}
+ html.workspace-narrow body #ribbon .ribbon-topbar #workspace-more{display:inline-flex!important;align-items:center;justify-content:center;font-size:17px!important;width:32px!important;height:24px!important;min-width:32px!important;padding:0!important}
+ #quickbar-bottom120{min-width:0!important}
+ #quickbar-bottom120>#command09{flex:0 0 25%!important;width:25%!important;min-width:0!important;max-width:25%!important;padding:4px 6px!important;overflow:hidden}
+ #quickbar-bottom120 #command09>div{min-width:0}
+ #quickbar-bottom120>#quickbar-slot108{flex:1 1 0!important;width:0!important;min-width:0!important;max-width:75%!important}
+ #quickbar-bottom120 #quickbar-window108:not([data-floating=true]){width:100%!important;min-width:0!important;max-width:100%!important}
+ body>footer{gap:6px!important;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:thin;min-width:0}
+ body>footer #coords,body>footer #perf{display:none!important}
+ body>footer #status{min-width:40px}
+ .ribbon-page.ribbon-overflow{overflow-x:auto!important;scrollbar-width:thin!important}
+}
+@media(max-width:900px){
+ main{position:relative;min-width:0}
+ main>#propertiespanel:not([hidden]),main>#layerpanel:not([hidden]){position:absolute!important;top:0!important;bottom:0!important;z-index:40!important;width:min(330px,calc(100% - 74px))!important;min-width:0!important;max-width:calc(100% - 74px)!important;box-shadow:0 5px 22px #0007;overflow:auto!important}
+ main>#propertiespanel{right:34px!important;left:auto!important;border-left:1px solid var(--border)}
+ main>#layerpanel{left:34px!important;right:auto!important;border-right:1px solid var(--border)}
+ main>.sidebar-resizer{display:none!important}
+ #workspace{min-width:0;flex:1 1 0!important}
+ .responsive-panel-close{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 26px!important;width:26px;height:26px;padding:0!important;font-size:20px;margin-left:auto}
+ main>aside .row{min-width:0;gap:8px!important}
+ main>aside .row :is(select,input:not([type=checkbox])){min-width:0!important;max-width:100%!important}
+ main>aside .row>span.numeric-stepper{min-width:0!important}
+ main>aside input[type=range]{max-width:55%}
+ main>aside .palette093-caption{min-width:0}
+ dialog.settings152{max-width:calc(100vw - 16px)!important}
+}
+@media(min-width:901px) and (max-width:1300px){main>#propertiespanel,main>#layerpanel{max-width:32vw!important;min-width:0!important}}
+@media(max-width:620px){html.workspace-narrow body #ribbon .ribbon-topbar>.ribbon-tabs [role=tab]:not([hidden]){font-size:11px!important;padding:4px 6px!important}#quickbar-bottom120>#command09{flex-basis:22%!important;max-width:22%!important}#quickbar-bottom120>#quickbar-slot108{max-width:78%!important}}
+
+@media(max-width:900px){
+ html body main>:is(#propertiespanel,#layerpanel).settings142 label.row{grid-template-columns:minmax(0,1fr)!important;gap:4px!important}
+ html body main>:is(#propertiespanel,#layerpanel).settings142 label.row:has(input[type=checkbox]){grid-template-columns:minmax(0,1fr) auto!important}
+ html body main>:is(#propertiespanel,#layerpanel) :is(.panel,details,section,.selection-editor,.color-favorite-control){min-width:0;max-width:100%;box-sizing:border-box}
+ html body main>:is(#propertiespanel,#layerpanel) .color-favorite-control{flex-wrap:wrap!important}
+ html body main>:is(#propertiespanel,#layerpanel) button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+}
+
+@media(max-width:900px){main>:is(#propertiespanel,#layerpanel) :is(select.linetype-source,select.font-preview-source){left:0!important;top:0!important;width:1px!important;height:1px!important;padding:0!important;border:0!important}}

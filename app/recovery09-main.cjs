@@ -17,7 +17,7 @@ module.exports=({app,ipcMain,sources})=>{
   const text=JSON.stringify({format:'DWG-Alcide',version:1,source:copy,...saved,recovery:{createdAt,name,originalSource:source,originalProjectPath:data.projectPath||null}});
   if(text.length>80000000)throw Error('Dessin trop volumineux pour la récupération automatique.');
   await atomic(path.join(dir,'versions',file),text);
-  const row={file,name,createdAt,dirty:!!data.dirty,reason:verifiedPath?'verified-dwg':data.reason==='manual'?'manual':'automatic',token:data.token};
+  const row={file,name,createdAt,dirty:!!data.dirty,reason:verifiedPath?'verified-dwg':data.reason==='manual'?'manual':'automatic',token:data.token,...(typeof data.thumbnail==='string'&&data.thumbnail.length<160000&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(data.thumbnail)?{thumbnail:data.thumbnail}:{})};
   const limit=Number.isInteger(data.recoveryVersions)?Math.max(1,Math.min(50,data.recoveryVersions)):12;const previous=index.versions||[];
   const candidates=[row,...previous],verified=candidates.find(v=>v.reason==='verified-dwg');
   const versions=[...(verified?[verified]:[]),...candidates.filter(v=>v.reason!=='verified-dwg').slice(0,limit)].sort((a,b)=>b.createdAt.localeCompare(a.createdAt));await atomic(indexPath,JSON.stringify({versions}));

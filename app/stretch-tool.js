@@ -2,17 +2,19 @@ function stretchVertices(e){if(e?.type==='HATCH'&&e.nativeHatch)return (e.hatchD
 function stretchEligible(e){return cadEligible(e)||!!(e?.type==='HATCH'&&e.nativeHatch?.editable&&!isLocked(e));}
 function stretchPoint(pixel){const mode=cadMode,p=snap(pixel),a=mode?.points[2];if(!a)return p;const scale=mm[$('#units').value];if(!scale)return p;if(snapPoint&&snapKind&&!['grille','pas','arrondi 0,5 cm'].includes(snapKind))return p;const step=window.GlobalStep?GlobalStep.step():5/scale;if(!step)return p;let delta=p.map((n,i)=>Math.round((n-a[i])/step)*step);if(shiftConstraintHeld||$('#ortho').checked){const raw=world(pixel);if(Math.abs(raw[0]-a[0])>=Math.abs(raw[1]-a[1]))delta[1]=0;else delta[0]=0;}return a.map((n,i)=>n+delta[i]);}
 function stretchContains(rect,p){return p[0]>=rect[0]&&p[0]<=rect[2]&&p[1]>=rect[1]&&p[1]<=rect[3];}
-function stretchShape(e,rect,delta){const ps=cadVertices(e).map(p=>stretchContains(rect,p)?p.map((n,i)=>n+delta[i]):p);return cadClosed(e)?[...ps,ps[0]]:ps;}
+function stretchShape(e,rect,delta){const ps=cadStretchVertices(e).map(p=>stretchContains(rect,p)?p.map((n,i)=>n+delta[i]):p);return cadClosed(e)&&ps.length&&cadDistance(ps[0],ps.at(-1))>1e-8?[...ps,ps[0]]:ps;}
+function validateStretchGeometry(rect,delta,ids){
+  for(const id of ids||[...selected]){const e=entities.get(id);if(!cadEligible(e))continue;const ps=stretchShape(e,rect,delta);
+   for(let i=1;i<ps.length;i++)if(cadDistance(ps[i-1],ps[i])<1e-8)throw Error('Étirement annulé : un segment deviendrait nul.');
+   if(cadClosed(e)){const area=ps.slice(1).reduce((n,p,i)=>n+ps[i][0]*p[1]-p[0]*ps[i][1],0);if(Math.abs(area)<1e-8)throw Error('Étirement annulé : le contour serait aplati.');}
+   for(let i=0;i<ps.length-1;i++)for(let j=i+2;j<ps.length-1;j++){if(cadClosed(e)&&i===0&&j===ps.length-2)continue;const hit=cadLineIntersection(ps[i],ps[i+1],ps[j],ps[j+1]);if(hit&&hit.t>1e-8&&hit.t<1-1e-8&&hit.q>1e-8&&hit.q<1-1e-8)throw Error('Étirement annulé : le contour se croiserait.');}
+  }}
 (()=>{
  const start=cadStart;cadStart=function(mode,...args){const scope=[...selected];start(mode,...args);if(mode==='stretch'&&cadMode){cadMode.scope=scope;cadMode.escapeArmed=false;}};
  function resetStretch(){const m=cadMode;m.points=[];m.rect=null;m.ids=[...(m.scope||[])];m.token=saveToken;cadPreview=null;}
  const button=$('#stretchobjects');button.onclick=()=>cadStart('stretch');button.title='Étirer les sommets dans une fenêtre, puis choisir un déplacement';$('#trimobjects').parentElement.append(button);
  const originalStretch=cadStretch;cadStretch=function(rect,delta,ids){
-  for(const id of ids||[...selected]){const e=entities.get(id);if(!cadEligible(e))continue;const ps=stretchShape(e,rect,delta);
-   for(let i=1;i<ps.length;i++)if(cadDistance(ps[i-1],ps[i])<1e-8)throw Error('Étirement annulé : un segment deviendrait nul.');
-   if(cadClosed(e)){const area=ps.slice(1).reduce((n,p,i)=>n+ps[i][0]*p[1]-p[0]*ps[i][1],0);if(Math.abs(area)<1e-8)throw Error('Étirement annulé : le contour serait aplati.');}
-   for(let i=0;i<ps.length-1;i++)for(let j=i+2;j<ps.length-1;j++){if(cadClosed(e)&&i===0&&j===ps.length-2)continue;const hit=cadLineIntersection(ps[i],ps[i+1],ps[j],ps[j+1]);if(hit&&hit.t>1e-8&&hit.t<1-1e-8&&hit.q>1e-8&&hit.q<1-1e-8)throw Error('Étirement annulé : le contour se croiserait.');}
-  }return originalStretch(rect,delta,ids);
+  validateStretchGeometry(rect,delta,ids);return originalStretch(rect,delta,ids);
  };
  const refreshBase=refresh;refresh=function(...args){const result=refreshBase(...args);button.disabled=!scene||busy;return result;};
  const controls=syncLayerControls;syncLayerControls=function(...args){const result=controls(...args);button.disabled=!scene||busy;return result;};button.disabled=!scene||busy;
