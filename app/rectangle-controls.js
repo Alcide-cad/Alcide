@@ -26,7 +26,7 @@ function saveRectangle(e,ps,before){edits[e.id]={...edits[e.id],geometry:{points
 (()=>{
  const rotate=canRotateGrip;canRotateGrip=function(e){return !!rectangleInfo(e)||rotate(e);};
  const pivot=gripRotationPivot;gripRotationPivot=function(e){const r=rectangleInfo(e);return r?r.ps[0].map((n,i)=>(n+r.ps[2][i])/2):pivot(e);};
- const apply=applyGripRotation;applyGripRotation=function(e,angle){const r=rectangleInfo(e);if(!r)return apply(e,angle);edits[e.id]={...edits[e.id],geometry:{points:r.ps.map(p=>gripRotatePoint(p,gripRotationPivot(e),angle)),closed:true}};};
+ const apply=applyGripRotation;applyGripRotation=function(e,angle){const r=rectangleInfo(e);if(!r)return apply(e,angle);const pv=gripRotationPivot(e),rot=p=>gripRotatePoint(p,pv,angle),prior=edits[e.id]||{};edits[e.id]={...prior,geometry:{points:r.ps.map(rot),closed:true}};if(prior.props&&typeof rotationFillProps==='function')edits[e.id].props=rotationFillProps(prior.props,rot,angle);};
  const set=setTool;setTool=function(...args){rectangleGrip=null;return set(...args);};
  document.addEventListener('pointerdown',ev=>{
   if(ev.target!==overlay||ev.button!==0||ev.altKey||busy)return;

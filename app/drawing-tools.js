@@ -12,7 +12,8 @@ function objectLineDash(e,p){
   const segs=paths.filter(p=>p.length===2);if(segs.length>=2){const lens=segs.map(p=>cadDistance(...p)).filter(v=>v>1e-8).sort((a,b)=>a-b),gaps=segs.slice(1).map((p,i)=>cadDistance(segs[i][1],p[0])).filter(v=>v>1e-8).sort((a,b)=>a-b);if(lens.length&&gaps.length)dash=[lens[Math.floor(lens.length/2)],gaps[Math.floor(gaps.length/2)]];}
  }
  const scale=edit.props?.linetypeScale??e.linetypeScale??1;
- return (dash||[]).map(v=>Math.max(1e-8,Math.abs(v)*scale*(entry?(window.DocumentLineScale145?.ratio()||1):(window.DocumentLineScale145?.current()||1))));
+ // 1.0.87 : un point (tiret de longueur nulle) reste visible, comme dans AutoCAD (1 pixel environ).
+ return (dash||[]).map((v,i)=>i%2===0&&Math.abs(v)<=1e-6?1.2/(view.s||1):Math.max(1e-8,Math.abs(v)*scale*(entry?(window.DocumentLineScale145?.ratio()||1):(window.DocumentLineScale145?.current()||1))));
 }
 // Native 2D geometry, with one shared style for creation and targeted editing.
 let drawingMode=null,drawingPaletteKey='',drawingTouched=new Set();

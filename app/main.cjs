@@ -37,14 +37,42 @@ function engineDiagnostic(event,detail){try{const dir=path.join(app.getPath('use
 async function openCompatibilityDiagnostic(){const dir=path.join(app.getPath('userData'),'diagnostics');fs.mkdirSync(dir,{recursive:true});engineDiagnostic('manual-check',{engineRunning:!!worker&&!workerFailure&&worker.exitCode===null,error:workerFailure?.message||null});return shell.openPath(path.join(dir,'engine-startup.log'));}
 ipcMain.handle('compatibility-diagnostic',()=>openCompatibilityDiagnostic());
 function startWorker(){
- const exe=path.join(__dirname,'engine','alcide-engine.exe');
- workerFailure=null;workerStderr='';engineDiagnostic('start',{engine:exe,exists:fs.existsSync(exe),platform:process.platform,arch:process.arch});const args=[];worker=spawn(exe,args,{windowsHide:true,stdio:['pipe','pipe','pipe']});
- readline.createInterface({input:worker.stdout}).on('line',line=>{try{const msg=JSON.parse(line);if(msg.event){win?.webContents.send('load-progress',msg);return;}const p=pending.get(msg.id);if(p){pending.delete(msg.id);clearTimeout(p.timer);msg.error?p.reject(new Error(msg.error)):p.resolve(msg.result);}}catch(e){console.error(e);}});
- worker.stderr.on('data',d=>{const text=d.toString().slice(0,2000);workerStderr=(workerStderr+text).slice(-6000);engineDiagnostic('stderr',text);console.error(text);});
- worker.stdin.on('error',error=>{workerFailure=error;engineDiagnostic('stdin-error',{message:error.message,code:error.code});fail(error);});worker.on('error',error=>{workerFailure=new Error('Le moteur de dessin ne peut pas démarrer : '+error.message+' · Composant : '+exe);engineDiagnostic('launch-error',{message:error.message,code:error.code,engine:exe});fail(workerFailure);});worker.on('exit',(code,signal)=>{workerFailure=new Error('Le moteur de dessin s’est arrêté (code '+code+'). '+(workerStderr.trim()||'Consultez le diagnostic de compatibilité dans Aide.'));engineDiagnostic('exit',{code,signal});fail(workerFailure);});
+ const exe=path.join(__dirname,'engine','alcide-engine.exe'),args=[];
+ workerFailure=null;workerStderr='';engineDiagnostic('start',{engine:exe,exists:fs.existsSync(exe),platform:process.platform,arch:process.arch});const child=spawn(exe,args,{windowsHide:true,stdio:['pipe','pipe','pipe']});worker=child;
+ // Events from a previous engine process must never reject requests sent to its replacement.
+ const current=()=>worker===child;
+ readline.createInterface({input:child.stdout}).on('line',line=>{if(!current())return;try{const msg=JSON.parse(line);if(msg.event){if(msg.docId)extendOpenTimers(msg.docId);win?.webContents.send('load-progress',msg);return;}const p=pending.get(msg.id);if(p){pending.delete(msg.id);clearTimeout(p.timer);msg.error?p.reject(new Error(msg.error)):p.resolve(msg.result);}}catch(e){console.error(e);}});
+ child.stderr.on('data',d=>{if(!current())return;const text=d.toString().slice(0,2000);workerStderr=(workerStderr+text).slice(-6000);engineDiagnostic('stderr',text);console.error(text);});
+ child.stdin.on('error',error=>{if(!current())return;workerFailure=error;engineDiagnostic('stdin-error',{message:error.message,code:error.code});fail(error);});child.on('error',error=>{if(!current())return;workerFailure=new Error('Le moteur de dessin ne peut pas démarrer : '+error.message+' · Composant : '+exe);engineDiagnostic('launch-error',{message:error.message,code:error.code,engine:exe});fail(workerFailure);});child.on('exit',(code,signal)=>{if(!current())return;workerFailure=new Error('Le moteur de dessin s’est arrêté (code '+code+'). '+(workerStderr.trim()||'Consultez le diagnostic de compatibilité dans Aide.'));engineDiagnostic('exit',{code,signal});fail(workerFailure);if(!appQuitting)engineStatus('stopped','Le moteur de dessin s’est arrêté. Il redémarrera automatiquement à la prochaine action ; vos modifications non enregistrées sont conservées.');});
 }
 function fail(e){for(const p of pending.values()){clearTimeout(p.timer);p.reject(e);}pending.clear();}
-function request(cmd){if(workerFailure)return Promise.reject(workerFailure);if(!worker?.stdin?.writable)return Promise.reject(new Error('Moteur de dessin indisponible. Consultez Aide → Diagnostic de compatibilité.'));return new Promise((resolve,reject)=>{const id=++seq;const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Le traitement du dessin dépasse le délai prévu.'));},['export','decompose-all','begin-block-edit','finish-block-edit','pdf-import'].includes(cmd.cmd)?600000:180000);pending.set(id,{resolve,reject,timer});worker.stdin.write(JSON.stringify({...cmd,id})+'\n');});}
+const engineAlive=()=>!!worker&&!workerFailure&&worker.exitCode===null&&worker.signalCode===null&&!!worker.stdin?.writable;
+function engineStatus(state,message){try{if(win&&!win.isDestroyed())win.webContents.send('engine-status',{state,message});}catch{}}
+// Automatic engine restart: the drawing edits live in the window, the engine only holds
+// the base documents. Reopening those bases restores every pending (unsaved) modification.
+let engineRestart=null,engineRestarts=[],appQuitting=false;
+function ensureEngine(){
+ if(engineAlive())return Promise.resolve();
+ if(engineRestart)return engineRestart;
+ if(appQuitting)return Promise.reject(new Error('ALCIDE se ferme.'));
+ const now=Date.now();engineRestarts=engineRestarts.filter(t=>now-t<120000);
+ if(engineRestarts.length>=3)return Promise.reject(new Error('Le moteur de dessin s’arrête à répétition. Enregistrez une copie si possible, puis relancez ALCIDE. '+(workerFailure?.message||'')));
+ engineRestarts.push(now);const reason=workerFailure?.message||'';
+ engineRestart=(async()=>{
+  engineDiagnostic('auto-restart',{reason,documents:sources.size});
+  engineStatus('restarting','Le moteur de dessin s’est arrêté. Redémarrage automatique… Vos modifications non enregistrées sont conservées dans la fenêtre.');
+  startWorker();const failed=[];
+  for(const [docId,file] of [...sources]){try{await rawRequest({cmd:'open',path:file,docId},openTimeout(file),docId);}catch(error){failed.push(path.basename(file)+' : '+error.message);}}
+  if(!engineAlive())throw workerFailure||new Error('Le moteur de dessin n’a pas pu redémarrer.');
+  engineStatus(failed.length?'partial':'restarted',failed.length?'Moteur de dessin redémarré, mais certains dessins n’ont pas pu être rechargés : '+failed.join(' · ')+'. Vos modifications restent dans la fenêtre ; utilisez Enregistrer sous ou la récupération automatique.':'Moteur de dessin redémarré automatiquement. Les dessins ouverts ont été rechargés ; vos modifications non enregistrées sont conservées.');
+ })().catch(error=>{engineStatus('failed','Le moteur de dessin n’a pas pu redémarrer : '+error.message+' Vos modifications restent dans la fenêtre et dans la récupération automatique. Relancez ALCIDE.');throw error;}).finally(()=>{engineRestart=null;});
+ return engineRestart;
+}
+// Opening time grows with the file: 3 min base + 6 s per MB (30 min max); progress events re-arm it.
+function openTimeout(file){let size=0;try{size=fs.statSync(file).size;}catch{}return Math.min(1800000,180000+Math.ceil(size/1e6)*6000);}
+function extendOpenTimers(docId){for(const [id,p] of pending)if(p.docId===docId&&p.timeoutMs){clearTimeout(p.timer);p.timer=setTimeout(p.expire,p.timeoutMs);}}
+function rawRequest(cmd,timeoutMs,docId){if(workerFailure)return Promise.reject(workerFailure);if(!worker?.stdin?.writable)return Promise.reject(new Error('Moteur de dessin indisponible. Consultez Aide → Diagnostic de compatibilité.'));return new Promise((resolve,reject)=>{const id=++seq;const delay=timeoutMs||(['export','decompose-all','begin-block-edit','finish-block-edit','pdf-import'].includes(cmd.cmd)?600000:180000);const expire=()=>{pending.delete(id);reject(new Error('Le traitement du dessin dépasse le délai prévu.'));};const timer=setTimeout(expire,delay);pending.set(id,{resolve,reject,timer,expire,docId:docId||null,timeoutMs:timeoutMs?delay:0});worker.stdin.write(JSON.stringify({...cmd,id})+'\n');});}
+function request(cmd,timeoutMs,docId){return ensureEngine().then(()=>rawRequest(cmd,timeoutMs,docId));}
 function validateFile(p,exts){if(typeof p!=='string'||!exts.includes(path.extname(p).toLowerCase())||!fs.statSync(p).isFile())throw new Error('Fichier non pris en charge.');return path.resolve(p);}
 let releaseStatus150=null;
 ipcMain.handle('release-info150',async(event,deep)=>{if(event.sender!==win?.webContents)throw Error('Fenêtre non autorisée.');const checked=deep===true?await require('./release-integrity150.cjs').verify(__dirname,app.getVersion(),{deep:true}):releaseStatus150;return {...checked,executable:process.execPath,application:app.getAppPath()};});
@@ -88,7 +116,7 @@ ipcMain.handle('pdf-info',(_,file)=>request({cmd:'pdf-info',path:validateFile(fi
 ipcMain.handle('pdf-preview',(_,file,page)=>request({cmd:'pdf-preview',path:validateFile(file,['.pdf']),page}));
 ipcMain.handle('pdf-import',async(_,data)=>{const source=validateFile(data.path,['.pdf']),dir=path.join(app.getPath('userData'),'pdf-imports',require('crypto').randomUUID()),name=cleanSuggestedName(source).replace(/\.pdf$/i,'')+' - page '+(Number(data.page)+1)+'.dxf',target=path.join(dir,name);const result=await request({cmd:'pdf-import',path:source,target,page:data.page,scale:data.scale,unit:data.unit,includeHidden:data.includeHidden});rememberDialogFolder(source);return {...result,source};});
 async function readScene(r){if(!r.sceneFile)return r;const t=performance.now();const data=await fs.promises.readFile(r.sceneFile);return {sceneGzip:data.toString('base64'),cacheHit:r.cacheHit,docId:r.docId,openSeconds:r.openSeconds,loadTimings:r.loadTimings,transferSeconds:(performance.now()-t)/1000};}
-ipcMain.handle('open-drawing',async(_,p,docId)=>{p=validateFile(p,['.dwg','.dxf']);const isDwg=path.extname(p).toLowerCase()==='.dwg',hash=isDwg?await drawingDiskHash(p):null;const r=await request({cmd:'open',path:p,docId});sources.set(docId,p);if(hash)drawingDiskVersions.set(docId,{path:p,hash});if(path.extname(p).toLowerCase()==='.dwg')setTimeout(()=>{if(sources.get(docId)===p&&!pending.size)request({cmd:'warm-save-source',docId}).catch(()=>{});},2000).unref();return readScene(r);});
+ipcMain.handle('open-drawing',async(_,p,docId)=>{p=validateFile(p,['.dwg','.dxf']);const hash=await drawingDiskHash(p);const r=await request({cmd:'open',path:p,docId},openTimeout(p),docId);sources.set(docId,p);drawingDiskVersions.set(docId,{path:p,hash});if(path.extname(p).toLowerCase()==='.dwg')setTimeout(()=>{if(sources.get(docId)===p&&!pending.size)request({cmd:'warm-save-source',docId}).catch(()=>{});},2000).unref();return readScene(r);});
 ipcMain.handle('layout',async(_,layout,docId)=>readScene(await request({cmd:'layout',layout,docId})));
 ipcMain.handle('close-drawing',async(_,docId)=>{const result=await request({cmd:'close',docId});baselineLifecycle.release(sources.get(docId));sources.delete(docId);frozenSaveSources.delete(docId);savedDrawingStats122.delete(docId);drawingDiskVersions.delete(docId);return result;});
 ipcMain.handle('dimension-preview',async(_,docId,requests)=>{const result=await request({cmd:'dimension-preview',docId,requests});return {dimensionGzip:zlib.gzipSync(JSON.stringify(result),{level:1}).toString('base64')};});
@@ -119,7 +147,7 @@ async function drawingDiskHash(file){
  return hash.digest('hex');
 }
 const diskPathKey=file=>path.resolve(file).toLowerCase();
-const externalDrawingError=()=>Error('Le DWG sur disque a changé depuis son ouverture ou son dernier enregistrement. Utilisez Enregistrer sous avec un autre nom ou rouvrez le fichier.');
+const externalDrawingError=()=>Error('Le fichier sur disque a changé depuis son ouverture ou son dernier enregistrement. Utilisez Enregistrer sous avec un autre nom ou rouvrez le fichier.');
 
 ipcMain.handle('drawing-save-current122',async(_,docId)=>{const prior=savedDrawingStats122.get(docId);if(!prior)return false;try{const stat=fs.statSync(prior.path),baseline=drawingDiskVersions.get(docId);return stat.size===prior.size&&stat.mtimeMs===prior.mtimeMs&&!!baseline&&await drawingDiskHash(prior.path)===baseline.hash;}catch{return false;}});
 const savingWindows=new Set(), saveWorkerPriorities=new WeakMap();
@@ -173,6 +201,7 @@ async function saveDrawing(data,dxf=false){
  mark('engineRpc');
  if(!result?.path||!result.verified||!fs.statSync(result.path).isFile()||!fs.statSync(result.path).size)throw Error('Le dessin enregistré est absent ou non vérifié.');
  if(!dxf&&!result.recovery){const stat=fs.statSync(result.path);drawingDiskVersions.set(data.docId,{path:result.path,hash:result.publishedHash||await drawingDiskHash(result.path)});savedDrawingStats122.set(data.docId,{path:result.path,size:stat.size,mtimeMs:stat.mtimeMs});await recoveryHistory.recordVerified(data.docId,result.path).catch(()=>{});}
+ else if(dxf&&!result.recovery&&baseline&&diskPathKey(baseline.path)===diskPathKey(result.path))drawingDiskVersions.set(data.docId,{path:result.path,hash:await drawingDiskHash(result.path)});
  rememberDialogFolder(result.recovery?result.requestedPath:result.path);
  if(result.recovery)await dialog.showMessageBox(win,{type:'warning',title:'Copie locale de secours',message:'Le dossier demandé refuse l’écriture. Le fichier précédent est conservé.',detail:'Une copie vérifiée est disponible ici : '+result.path,buttons:['Fermer']});
  mark('recordVerifiedSave');hostTimings.total=Math.round(performance.now()-started)/1000;
@@ -181,7 +210,7 @@ async function saveDrawing(data,dxf=false){
 ipcMain.handle('save-drawing',(event,data)=>saveFromWindow(event,data));
 ipcMain.handle('export-dxf',(event,data)=>saveFromWindow(event,data,true));
 ipcMain.handle('confirm-close',async()=>{const r=await dialog.showMessageBox(win,{type:'question',buttons:['Annuler','Continuer'],defaultId:0,cancelId:0,message:'Des modifications ne sont pas enregistrées.',detail:'Enregistrez le dessin DWG ou un projet ALCIDE pour conserver votre travail.'});return r.response===1;});
-app.on('window-all-closed',()=>app.quit());app.on('will-quit',()=>worker?.kill());
+app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>{appQuitting=true;});app.on('will-quit',()=>{appQuitting=true;worker?.kill();});
 
 
 
@@ -230,6 +259,7 @@ ipcMain.handle('app-version',()=>app.getVersion());
 
 // Print a prepared paper sheet in an isolated renderer, never the application UI.
 ipcMain.handle('print-paper116',async(event,data)=>{
+ if(data?.pdf&&(data.svg||data.sheets?.some(s=>s.svg))){if(event.sender!==win?.webContents)throw Error('Émetteur PDF invalide.');return require('./pdf-vector189.cjs').export({data,app,fs,dialog,BrowserWindow,win,lastDialogFolder,rememberDialogFolder});}
  if(data?.sheets){
  if(event.sender!==win?.webContents||!Array.isArray(data.sheets)||!data.sheets.length||data.sheets.length>20)throw Error('Lot de feuilles invalide.');
  let size=0;for(const s of data.sheets){if(!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(s?.image||'')||![s.width,s.height].every(v=>Number.isFinite(v)&&v>=50&&v<=2000))throw Error('Feuille invalide.');size+=s.image.length;}if(size>180000000)throw Error('Lot trop volumineux : réduisez la qualité.');

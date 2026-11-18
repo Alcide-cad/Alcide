@@ -1,0 +1,28 @@
+/* Contrast belongs to state, never to a washed-out layer of opacity. */
+body[data-theme=retro] #toolquickbar button.quick-action-icon{color:#3f513d!important}
+body[data-theme=retro] #toolquickbar button.quick-action-icon :is(svg,path){stroke:currentColor!important;opacity:1!important;filter:none!important}
+body[data-theme=retro] #toolquickbar button[data-quick-action-family=danger]{color:#a02f28!important}
+body[data-theme=retro] #toolquickbar button[data-quick-action-family=modify]{color:#744514!important}
+body[data-theme=retro] #toolquickbar button.quick-action-icon:disabled{opacity:1!important;color:#77684f!important;background:#e1d2b2!important;border-color:#aa9572!important;box-shadow:inset 0 1px #f5eacd!important}
+body[data-theme=retro] #welcome{background:#f0e6cf!important;color:#342d25!important}
+body[data-theme=retro] #welcome h1{color:#5b3825!important;text-shadow:none!important}
+body[data-theme=retro] #welcome .welcome-description{color:#433527!important}
+body[data-theme=retro] #welcome :is(p,small,.welcome-hints){color:#6e5c45!important}
+body[data-theme=retro] #welcome :is(.welcome-actions>button,.welcome-recent-file,#welcome-clear,#recovery-suggestion157 button){background:linear-gradient(#fff1cf,#dfc79b)!important;color:#433021!important;border:1px solid #97714c!important;box-shadow:inset 0 1px #fff8e4,0 2px #9c7f56!important;text-shadow:none!important}
+body[data-theme=retro] #welcome .welcome-actions>button:first-child{background:linear-gradient(#548751,#326540)!important;color:#fff7db!important;border-color:#39683c!important}
+body[data-theme=retro] #welcome .welcome-recent-file small{color:#65513b!important}
+body[data-theme=retro] #welcome .welcome-file-glyph{color:#4a7542!important}
+body[data-theme=retro] #welcome .welcome-history{background:#e8d8b5!important;border-color:#ad926b!important}
+body[data-theme=retro] #welcome #recovery-suggestion157{background:#e4d0a2!important;color:#493620!important;border-color:#a48042!important}
+body[data-theme=retro] #welcome button:disabled{opacity:1!important;color:#7b6d57!important;background:#e1d2b2!important;box-shadow:none!important}
+body[data-theme=forest] #welcome{background:#192f27!important;color:#f2e9d3!important}
+body[data-theme=forest] #welcome h1{color:#ecd6a2!important}
+body[data-theme=forest] #welcome :is(p,small,.welcome-hints){color:#c0c9af!important}
+body[data-theme=forest] #welcome .welcome-description{color:#f2e9d3!important}
+body[data-theme=forest] #welcome :is(.welcome-actions>button,.welcome-recent-file,#welcome-clear,#recovery-suggestion157 button){background:#3e5840!important;color:#f3e7c5!important;border:1px solid #a0a878!important}
+body[data-theme=forest] #welcome .welcome-history{background:#243d30!important;border-color:#7a8c67!important}
+body[data-theme=forest] #welcome .welcome-recent-file small{color:#c1cbaa!important}
+body[data-theme=forest] #welcome #recovery-suggestion157{background:#304a35!important;color:#e9dcac!important;border-color:#ab9c67!important}
+body[data-theme=forest] #toolquickbar button.quick-action-icon{color:#efdfb4!important}
+body[data-theme=forest] #toolquickbar button.quick-action-icon :is(svg,path){stroke:currentColor!important;opacity:1!important}
+body[data-theme=forest] #toolquickbar button.quick-action-icon:disabled{opacity:1!important;color:#afba9c!important;background:#304333!important;border-color:#66785c!important;box-shadow:none!important}

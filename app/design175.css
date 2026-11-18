@@ -1,0 +1,65 @@
+/* ALCIDE: quieter inspector hierarchy, shared targets and clear focus. */
+:root{--ui-field-h:28px;--ui-row:34px;--ui-gap:8px;--ui-radius:6px;--ui-small:12px}
+#propertiespanel.settings142{padding:0 10px 12px!important;line-height:1.45}
+#propertiespanel.settings142 :is(.inspector-card,details){border:0!important;border-top:1px solid var(--settings-edge)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:10px 2px!important;margin:0!important}
+#propertiespanel.settings142 :is(summary,h2,h3){letter-spacing:.01em;font-weight:600!important;border-bottom:0!important;margin:0 0 8px!important;padding:4px 0!important}
+#propertiespanel.settings142 summary{cursor:pointer;min-height:30px!important;display:list-item}
+#propertiespanel.settings142 details:not([open])>summary{margin-bottom:0!important;color:var(--settings-muted)}
+#propertiespanel.settings142 label.row{min-height:34px!important;row-gap:5px!important;padding:3px 0!important}
+#propertiespanel.settings142 :is(input[type=text],input[type=number],select){min-height:28px!important;height:28px!important;border-radius:6px!important}
+#propertiespanel.settings142 button{min-height:28px!important;border-radius:6px!important;line-height:1.35!important}
+#propertiespanel.settings142 :is(p,small,.muted){line-height:1.5}
+#propertiespanel.settings142 .palette093-header{padding:12px 2px!important;min-height:52px!important;border-bottom:1px solid var(--settings-edge)}
+#propertiespanel.settings142 .palette093-note{padding:6px 2px!important}
+#propertiespanel.settings142 .selection-editor{padding:10px 2px!important;border:0!important;background:transparent!important}
+#propertiespanel.settings142 .selection-editor>h2{margin-bottom:10px!important}
+#propertiespanel.settings142 fieldset{border:0!important;border-top:1px solid var(--settings-edge)!important;border-radius:0!important;padding:10px 0!important;margin:12px 0!important;min-width:0}
+#propertiespanel.settings142 legend{font-weight:600;padding:0 8px 0 0}
+#propertiespanel :is(button,input,select,summary):focus-visible,#toolquickbar button:focus-visible{outline:2px solid #80c9ec!important;outline-offset:2px}
+#selection-filter .selection-filter-choices{gap:8px}
+#selection-filter .selection-filter-choices button[aria-pressed=true],#quick-mirror-mode button[aria-pressed=true]{background:var(--settings-accent,#b6dc91)!important;color:#18271a!important;border-color:transparent!important;font-weight:600}
+#quick-mirror-mode{display:flex;gap:6px;align-items:center}
+#propertiespanel .design175-help{margin:8px 0!important;padding:0!important;border:0!important}
+#propertiespanel .design175-help>summary{font-size:11px!important;min-height:24px!important;color:var(--settings-muted);margin:0!important}
+@media(min-width:1101px){#propertiespanel{max-width:360px!important;min-width:280px!important}}
+@media(min-width:901px) and (max-width:1100px){#propertiespanel{max-width:300px!important;min-width:260px!important}}
+@media(max-width:900px){#propertiespanel.settings142{padding:0 12px 12px!important}#propertiespanel.settings142 label.row{margin-bottom:5px!important}main>#propertiespanel:not([hidden]){width:min(330px,calc(100% - 90px))!important}}
+#propertiespanel#propertiespanel.settings142 :is(.selection-editor,#selection-measurements){border:0!important;border-top:1px solid var(--settings-edge)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:12px 2px!important;margin:0 0 8px!important}
+#propertiespanel#propertiespanel.settings142 .selection-editor h2{font-size:13px!important;margin-bottom:10px!important}
+#propertiespanel#propertiespanel.settings142 .selection-editor .row{min-height:34px!important;padding:3px 0!important;margin:0!important}
+#propertiespanel#propertiespanel.settings142 .selection-editor :is(input,select,button){font-size:12px!important}
+#propertiespanel#propertiespanel.settings142 .selection-editor :is(input[type=text],input[type=number],select){height:28px!important;min-height:28px!important}
+#propertiespanel#propertiespanel.settings142 #selection-measurements h3{color:var(--settings-ink)!important}
+#propertiespanel#propertiespanel.settings142 #selection-measurements :is(p,span){color:var(--settings-muted)!important}
+#propertiespanel#propertiespanel.settings142 #selection-measurements strong{color:var(--settings-ink)!important}
+/* Shared chrome: quiet surfaces, consistent interactions, explicit hierarchy. */
+#ribbon .ribbon-tabs [role=tab]{border-radius:6px 6px 0 0!important;box-shadow:none!important;transition:background-color .12s}
+#ribbon .ribbon-tabs [role=tab][aria-selected=true]{font-weight:600!important;border-bottom:2px solid var(--accent,#b6dc91)!important}
+#ribboncontent .ribbon-group>small{font-size:10px!important;letter-spacing:.02em;opacity:.85}
+#ribboncontent button:not(.rf-toggle){border-radius:5px!important;box-shadow:none!important}
+#ribboncontent button:hover:not(:disabled){background:color-mix(in srgb,var(--accent,#b6dc91) 12%,transparent)!important}
+#ribboncontent button:focus-visible{outline:2px solid #80c9ec!important;outline-offset:-2px}
+#ribboncontent button:disabled{opacity:.42!important}
+#quickbar-bottom120{border-top:1px solid var(--border,#405766);gap:0!important}
+#quickbar-bottom120 #command09{border-right:1px solid var(--border,#405766)}
+#toolquickbar{gap:6px!important;align-items:center!important}
+#toolquickbar>button{border-radius:6px!important;box-shadow:none!important;min-height:30px!important}
+#toolquickbar button:hover:not(:disabled){border-color:var(--accent,#b6dc91)!important}
+#toolquickbar button:disabled{opacity:.42}
+body>footer{font-size:11px;border-top:1px solid var(--border,#405766);padding-top:4px;padding-bottom:4px}
+body>footer :is(button,select){border-radius:5px!important;box-shadow:none!important}
+dialog.settings152{border-radius:12px!important;border:1px solid var(--settings-edge,#506879)!important;box-shadow:0 16px 60px #0006!important;padding:18px!important;scroll-padding:70px 12px}
+dialog.settings152>h2,dialog.settings152>header{font-size:17px!important;line-height:1.4!important;padding-bottom:12px!important;margin-bottom:14px!important;border-bottom:1px solid var(--settings-edge,#506879)}
+dialog.settings152 :is(input[type=text],input[type=number],select){min-height:30px!important;border-radius:6px!important}
+dialog.settings152 button{min-height:30px!important;border-radius:6px!important;box-shadow:none!important}
+dialog.settings152 footer{gap:8px!important;padding:12px 0!important;bottom:-18px;isolation:isolate}
+dialog.settings152 footer button{min-width:90px}
+dialog.settings152 :is(fieldset,details){border-radius:6px}
+#palette-content{color:var(--text,#e7eff5);font-family:'Segoe UI',sans-serif}
+#palette-content>section#rebar-style136{padding:16px!important;box-sizing:border-box}
+#palette-content #rebar-style136>header{display:flex;align-items:center;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--settings-edge,#506879);margin-bottom:12px}
+#palette-content #rebar-style136>header strong{flex:1;font-size:15px}
+#palette-content :is(button,input[type=text],input[type=number],select){min-height:30px!important;border-radius:6px!important}
+#palette-content :is(button,input,select,summary):focus-visible,dialog.settings152 :is(button,input,select,summary):focus-visible{outline:2px solid #80c9ec!important;outline-offset:2px}
+@media(max-width:900px){dialog.settings152{padding:12px!important;border-radius:8px!important}dialog.settings152 footer{bottom:-12px}#toolquickbar>button{min-width:30px!important}#ribboncontent .rf-toggle{border-radius:7px!important}}
+@media(prefers-reduced-motion:reduce){#ribbon .ribbon-tabs [role=tab]{transition:none}}

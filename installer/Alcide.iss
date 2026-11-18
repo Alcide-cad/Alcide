@@ -1,5 +1,5 @@
 ﻿#ifndef AppVersion
-#define AppVersion "1.0.69"
+#define AppVersion "1.0.93"
 #endif
 #ifndef OutDir
 #define OutDir SourcePath + "..\dist"
@@ -85,6 +85,13 @@ Type: files; Name: "{userdesktop}\ALCIDE\ALCIDE.lnk"
 ; Old PyMuPDF (AGPL) notices from pre-1.0.17 local builds; the old engine folder is removed above.
 Type: files; Name: "{app}\resources\app\LICENSE-PyMuPDF-AGPL-3.0.txt"
 Type: files; Name: "{app}\Sources\LICENSE-PyMuPDF-AGPL-3.0.txt"
+; 1.0.87 : dossiers de construction laissés par d'anciennes installations locales
+Type: filesandordirs; Name: "{app}\resources\app\__pycache__"
+Type: filesandordirs; Name: "{app}\Sources\engine"
+Type: filesandordirs; Name: "{app}\Sources\engine-dist"
+Type: filesandordirs; Name: "{app}\Sources\dwg"
+Type: filesandordirs; Name: "{app}\Sources\__pycache__"
+Type: filesandordirs; Name: "{app}\Sources\validation-*"
 
 [Icons]
 Name: "{group}\ALCIDE"; Filename: "{app}\ALCIDE.exe"; WorkingDir: "{app}"; IconFilename: "{app}\resources\app\app-icon.ico"; AppUserModelID: "NicolasScherer.ALCIDE"

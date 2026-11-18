@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import ezdxf
 from ezdxf import xref
+import dwg_export
 
 def capture(engine,r):
     ids=r.get('ids',[])
@@ -34,7 +35,7 @@ def import_edits(out,edits,copies):
     for data_id,rows in groups.items():
         text=edits.get(data_id,{}).get('clipboardData131')
         if not isinstance(text,str) or len(text)>40000000:raise ValueError('Contenu du presse-papiers manquant.')
-        src=ezdxf.read(StringIO(text));original=list(src.modelspace());layout=out.modelspace();before=set(e.dxf.handle for e in layout)
+        src=ezdxf.read(StringIO(text));dwg_export.declare_missing_layers(src);original=list(src.modelspace());layout=out.modelspace();before=set(e.dxf.handle for e in layout)
         loader=xref.Loader(src,out,conflict_policy=xref.ConflictPolicy.NUM_PREFIX);loader.load_modelspace();loader.execute()
         imported=[e for e in layout if e.dxf.handle not in before]
         if len(imported)!=len(original):raise ValueError('Import incomplet : le dessin ne sera pas enregistré.')
@@ -56,7 +57,7 @@ def rescale(engine,r):
     from ezdxf.math import Matrix44
     text=r.get('dxf');factor=float(r.get('factor',0))
     if not isinstance(text,str) or len(text)>40000000 or not math.isfinite(factor) or not 1e-6<=factor<=1e6:raise ValueError('Conversion d’unités incorrecte.')
-    doc=ezdxf.read(StringIO(text))
+    doc=ezdxf.read(StringIO(text));dwg_export.declare_missing_layers(doc)
     for e in doc.modelspace():e.transform(Matrix44.scale(factor))
     doc.header['$INSUNITS']=int(r.get('unitCode',0))
     stream=StringIO();doc.write(stream);previous=(engine.DOC,engine.SOURCE,engine.WARNINGS)

@@ -1,0 +1,67 @@
+/* Sylve — deep canopy, amber lamplight and engraved botanical details. */
+body[data-theme=forest]{--panel:#20372f;--text:#f2e9d3;--muted:#bec8ad;--border:#71866b;--accent:#b6cc86;background:#182b25;color:#f2e9d3}
+body[data-theme=forest] .settings142{--settings-ink:#f2e9d3;--settings-muted:#bec8ad;--settings-field:#142b24;--settings-edge:#64785b;--settings-accent:#b6cc86}
+body[data-theme=forest] :is(#propertiespanel,#layerpanel,#detail-library,#preferences-content,#rebar-dialog,#palette-content){background:#20372f!important;color:#f2e9d3!important;border-color:#667c61!important}
+body[data-theme=forest] :is(#ribbon,#ribboncontent,.ribbon-page){background:#273e32!important;color:#f2e9d3!important}
+body[data-theme=forest] .ribbon-topbar{background:linear-gradient(180deg,#536046,#374a36)!important;border-top:2px solid #b89a60!important}
+body[data-theme=forest] #ribbon{border-bottom-color:#b79a61!important;box-shadow:0 2px #14291f}
+body[data-theme=forest] #ribboncontent .ribbon-group{border-right-color:#657454!important}
+body[data-theme=forest] #ribboncontent .ribbon-group>small{color:#c1c5a0!important;letter-spacing:.06em}
+body[data-theme=forest] #ribboncontent button{color:#ede9cf!important}
+body[data-theme=forest] #ribboncontent :is(.ribbon-icon,svg){color:#c5d6a2!important;filter:drop-shadow(0 1px #16271e)}
+body[data-theme=forest] #ribboncontent button:hover:not(:disabled){background:#526044!important;border-color:#b8a56d!important}
+body[data-theme=forest] #ribbon .ribbon-tabs [role=tab]{color:#e4e3c5!important;font:600 13px Georgia,serif!important}
+body[data-theme=forest] #ribbon .ribbon-tabs [role=tab][aria-selected=true]{background:linear-gradient(#c6b17f,#a28a5b)!important;color:#223329!important;border-color:#ddc18a!important;border-bottom:2px solid #efda9e!important;box-shadow:inset 0 1px #f0dfac!important}
+body[data-theme=forest] #ribboncontent .rf-toggle{background:linear-gradient(#4f6349,#344c3b)!important;border-color:#97a177!important;box-shadow:inset 0 1px #97a480,0 2px #172d22!important}
+body[data-theme=forest] :is(#propertiespanel,#layerpanel,dialog,#rebar-dialog) :is(h2,h3,h4,legend,summary){color:#e9d7a5!important}
+body[data-theme=forest] :is(#propertiespanel,#layerpanel,dialog,#rebar-dialog) :is(p,small,.muted){color:#bec8ad!important}
+body[data-theme=forest] .palette093-header{background-color:#314d3b!important;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22210%22%20height%3D%2290%22%20viewBox%3D%220%200%20210%2090%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%23bfa36c%22%20stroke-width%3D%221%22%20opacity%3D%22.65%22%3E%3Cpath%20d%3D%22M20%2083Q65%2037%20190%2020M49%2061Q42%2024%2066%2021Q82%2047%2049%2061ZM85%2043Q89%2010%20112%2014Q119%2037%2085%2043ZM124%2032Q143%204%20160%2013Q158%2030%20124%2032ZM61%2054Q83%2072%20101%2055Q92%2043%2061%2054ZM111%2036Q139%2058%20158%2040Q142%2027%20111%2036Z%22/%3E%3Cpath%20d%3D%22M165%2065h25m-12-12v25m-8-20%2016%2016m0-16-16%2016%22/%3E%3Ccircle%20cx%3D%22178%22%20cy%3D%2265%22%20r%3D%228%22/%3E%3Ccircle%20cx%3D%22178%22%20cy%3D%2265%22%20r%3D%223%22/%3E%3C/g%3E%3Cg%20fill%3D%22%23ddbf7c%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%221.5%22/%3E%3Ccircle%20cx%3D%22138%22%20cy%3D%2270%22%20r%3D%221.5%22/%3E%3Ccircle%20cx%3D%22197%22%20cy%3D%2242%22%20r%3D%221%22/%3E%3C/g%3E%3C/svg%3E")!important;background-position:right center!important;background-size:150px 65px!important;background-repeat:no-repeat!important;border-top:2px solid #c4a76d!important;border-bottom:1px solid #778365!important}
+body[data-theme=forest] .palette093-caption{position:relative;z-index:1;text-shadow:0 1px 3px #193023}
+body[data-theme=forest] .palette093-caption strong{color:#f6e7b9!important;font-family:Georgia,serif!important;font-size:16px!important}
+body[data-theme=forest] .palette093-caption span{color:#d3d9be!important}
+body[data-theme=forest] .palette093-header::after{display:none}
+body[data-theme=forest] .palette093-note{background:#192f28!important;color:#c7c9a9!important;border-left:2px solid #b79459!important}
+body[data-theme=forest] :is(#propertiespanel,#layerpanel,#rebar-dialog,dialog,#palette-content) :is(input[type=text],input[type=number],input:not([type]),select,textarea){background:#142b24!important;color:#f5eedb!important;border:1px solid #879373!important;box-shadow:inset 0 1px 3px #081e17!important;caret-color:#eed495;text-shadow:none!important}
+body[data-theme=forest] :is(input,textarea)::placeholder{color:#abb69c!important}
+body[data-theme=forest] :is(#propertiespanel,#layerpanel,#detail-library,#rebar-dialog,dialog,#toolquickbar,footer,#palette-content,.ribbon-fold,.ribbon-quick-access) button{background:linear-gradient(#5f6c4e,#43583e)!important;color:#f3e8c7!important;border:1px solid #a2a580!important;box-shadow:inset 0 1px #b2b38a66,0 2px 3px #0a221b55!important;text-shadow:none!important}
+body[data-theme=forest] :is(#propertiespanel,#layerpanel,#detail-library,#rebar-dialog,dialog,#toolquickbar,footer,#palette-content,.ribbon-fold,.ribbon-quick-access) button:hover:not(:disabled){background:linear-gradient(#7d8258,#5b704b)!important;border-color:#e0cc92!important;color:#fff4d3!important}
+body[data-theme=forest] :is(button.active,button.primary,button[aria-pressed=true],#selection-filter button[aria-pressed=true],#quick-mirror-mode button[aria-pressed=true]){background:linear-gradient(#d2bc7e,#a38c50)!important;color:#213429!important;border-color:#e9dba8!important;box-shadow:inset 0 1px #fff2c4,0 2px #152b20!important}
+body[data-theme=forest] :is(button,input,select,textarea,summary):focus-visible{outline:2px solid #f0cc7e!important;outline-offset:2px!important}
+body[data-theme=forest] :is(input[type=checkbox],input[type=range],input[type=radio]){accent-color:#bfce8c}
+body[data-theme=forest] .side-tabs{background:#172d25!important;border-color:#6b7a5e!important}
+body[data-theme=forest] .side-tabs button{background:linear-gradient(90deg,#3c5541,#2a4435)!important;color:#d4dabd!important;border-color:#7f8d6b!important;border-radius:3px 11px 11px 3px!important;box-shadow:inset 1px 0 #9caa7960!important}
+body[data-theme=forest] .side-tabs button.active,body[data-theme=forest] .side-tabs button[aria-selected=true]{background:#697b4e!important;color:#fff2c3!important;border-color:#d6c180!important;border-left:3px solid #edca7c!important}
+body[data-theme=forest] #tabs{background:#182e26!important;border-color:#677557!important}
+body[data-theme=forest] #tabs [role=tab]{background:#3f5640!important;color:#e1e3c6!important;border-color:#82906c!important}
+body[data-theme=forest] #tabs [role=tab][aria-selected=true]{background:#8d754a!important;color:#fff1c5!important;border-top-color:#e4c27b!important}
+body[data-theme=forest] :is(#quickbar-bottom120,#quickbar-window108,#toolquickbar){background:#2c4334!important;border-color:#879372!important}
+body[data-theme=forest] #command09{background:#21372c!important;border-left-color:#c3a16a!important}
+body[data-theme=forest] #command09 strong{color:#e2ce96!important;font-family:Georgia,serif}
+body[data-theme=forest]>footer{background:linear-gradient(#384d36,#263e30)!important;color:#d0d6b9!important;border-top-color:#8f9870!important}
+body[data-theme=forest] #status{color:#e1d8ad!important}
+body[data-theme=forest] :is(.layer-card,.v09-card,.hatch-card){background:#2c4536!important;color:#e6e7c9!important;border-color:#758662!important}
+body[data-theme=forest] .layer-card:hover{background:#3b5840!important;border-color:#c7bb86!important}
+body[data-theme=forest] dialog.settings152{background:#243b30!important;color:#f2e9d3!important;border-color:#b4ac7e!important;border-top:3px solid #c6ab70!important;box-shadow:0 15px 55px #061d18aa!important}
+body[data-theme=forest] dialog.settings152>h2,body[data-theme=forest] dialog.settings152>header{color:#f0dcab!important;border-bottom-color:#8a936b!important}
+body[data-theme=forest] dialog.settings152 footer{background:#243b30!important;border-color:#87906a!important}
+body[data-theme=forest] :is(#rebar-style136,#steel-inspect132,#palette-content>section#rebar-style136){background:#243b30!important;color:#f2e9d3!important;border-color:#aa9c6c!important;border-top-color:#c6ab70!important}
+body[data-theme=forest] :is(#rebar-style136,#steel-inspect132)>header{background:#3b523d!important;color:#f1dda9!important;border-color:#a39d70!important}
+body[data-theme=forest] :is(#rebar-style136,#steel-inspect132)>header strong{color:#f1dda9!important;font-family:Georgia,serif}
+body[data-theme=forest] :is(#rebar-style136,#steel-inspect132) legend{color:#d8d8a8!important}
+body[data-theme=forest] :is(#rebar-style136,#steel-inspect132) fieldset{border-color:#8d9c70!important}
+body[data-theme=forest] #rebar-style136 [data-preview]{background:#182f27!important;color:#e7dcad!important;border-color:#b9a46a!important}
+body[data-theme=forest] #theme177-menu{background:#243b30!important;color:#f2e9d3!important;border-color:#b7a375!important}
+body[data-theme=forest] #theme177-menu>strong{color:#ecd5a0!important;font-family:Georgia,serif;text-transform:none}
+body[data-theme=forest] #theme177-menu>button[aria-pressed=true]{background:#526746!important;border-color:#d5be80!important}
+body[data-theme=forest] :is(#workspace-more-menu,.rf-open>.ribbon-tools){background:#2b4535!important;color:#f1e9ce!important;border-color:#a8ac7f!important}
+body[data-theme=forest] :is([role=tooltip],#ribbon-tooltip,#quick-action-tooltip){background:#21382d!important;color:#f2dfa9!important;border-color:#c0a76b!important;box-shadow:0 4px 16px #061c15aa!important}
+body[data-theme=forest] ::-webkit-scrollbar{background:#182f27}
+body[data-theme=forest] ::-webkit-scrollbar-thumb{background:#7b9068;border-color:#182f27;box-shadow:inset 0 1px #c1ca94}
+body[data-theme=forest] ::-webkit-scrollbar-corner{background:#182f27}
+
+/* Shared shape vocabulary, without inherited colours from the retired theme. */
+body[data-theme=forest] :is(button,input,select,textarea,dialog.settings152,.layer-card){border-radius:7px!important;text-shadow:none!important}
+body[data-theme=forest] :is(.palette093-caption strong,dialog.settings152>h2){font-family:Georgia,serif!important}
+body[data-theme=forest] #palette-content #rebar-style136>header{display:flex!important;flex-wrap:wrap;gap:8px!important;align-items:center!important;height:auto!important}
+body[data-theme=forest] #palette-content #rebar-style136>header strong{flex:1 1 180px!important;min-width:0}
+body[data-theme=forest] #palette-content #rebar-style136>header button{width:auto!important;min-width:max-content!important;flex:0 0 auto!important;padding:5px 10px!important;white-space:nowrap!important;float:none!important}

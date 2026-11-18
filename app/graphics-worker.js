@@ -1,4 +1,6 @@
 importScripts('canvas-precision.js','theme09-core.js','worker-spatial124.js');
+// 1.0.91 : dégradés reconstruits côté worker (même géométrie que Gradient187.canvasGradient).
+function gradient191(c,g){const G=g.kind==='linear'?c.createLinearGradient(...g.p0,...g.p1):c.createRadialGradient(...g.c,0,...g.c,g.r);for(const [t,col] of g.stops)G.addColorStop(t,col);return G;}
 // Geometry compilation, viewport culling, level of detail and raster work stay off the UI thread.
 let generation=0,objects=new Map(),complete=false,canvas=null,ctx=null;
 let svgPaths=new Map(),svgBytes=0,index124=null,indexDirty124=true;
@@ -17,7 +19,7 @@ function render(message){if(message.generation!==generation)return;const start=p
   for(const p of e.primitives){if(message.lod&&!chosen&&p.kind==='text'&&p.height*view.s*dpr<(message.interactive?5:2.5)){stats.textSkipped++;continue;}let path=null;
    if(message.lod&&!chosen&&p.kind==='hatch'&&!p.fill&&p.spacing>0&&p.spacing*view.s*dpr<(message.interactive?3:1.5)){const stride=Math.min(64,2**Math.ceil(Math.log2((message.interactive?3:1.5)/(p.spacing*view.s*dpr))));const coarse=coarsePath(p,stride);if(coarse){path=coarse;stats.hatchSimplified++;}}
    path??=(p.path??=pathOf(p.trace));
-   ctx.fillStyle=ctx.strokeStyle=Theme09Core.color(p.color,message.theme||'dark');ctx.globalAlpha=p.alpha;ctx.lineWidth=p.width/view.s;ctx.setLineDash(p.dash);ctx.save();if(p.offset)ctx.translate(p.offset[0],p.offset[1]);if(p.fill)ctx.fill(path,'evenodd');else ctx.stroke(path);ctx.restore();stats.primitives++;
+   ctx.fillStyle=ctx.strokeStyle=p.color&&p.color.gradient?gradient191(ctx,p.color.gradient):Theme09Core.color(p.color,message.theme||'dark');ctx.globalAlpha=p.alpha;ctx.lineWidth=p.width/view.s;ctx.setLineDash(p.dash);ctx.save();if(p.offset)ctx.translate(p.offset[0],p.offset[1]);if(p.fill)ctx.fill(path,'evenodd');else ctx.stroke(path);ctx.restore();stats.primitives++;
   }
   if(chosen){ctx.strokeStyle=Theme09Core.color(message.selectionColor||'#66b3ff',message.theme||'dark');ctx.globalAlpha=.8;ctx.lineWidth=2/view.s;ctx.setLineDash([]);for(const p of e.primitives){p.path??=pathOf(p.trace);ctx.save();if(p.offset)ctx.translate(p.offset[0],p.offset[1]);ctx.stroke(p.path);ctx.restore();}}
  }

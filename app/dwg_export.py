@@ -1,11 +1,25 @@
 """ODA external converter, isolated jobs, validated publication of DWG 2018."""
 import os, shutil, subprocess, tempfile, math, hashlib, time, uuid
 from pathlib import Path
-from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 import ezdxf
 import pickle
 import document_scale
+
+def declare_missing_layers(doc):
+    """Add LAYER table entries for layers used by entities but never declared.
+    AutoCAD accepts such DXF files; ezdxf raises on doc.layers.get(name)."""
+    added=[]
+    try:
+        for e in list(doc.entitydb.values()):
+            try:
+                if not e.dxf.is_supported('layer'):continue
+                name=e.dxf.get('layer')
+                if name and name not in doc.layers:
+                    doc.layers.add(name);added.append(name)
+            except Exception:continue
+    except Exception:pass
+    return added
 
 def converter():
     paths=[]
@@ -16,7 +30,6 @@ def converter():
     for root in roots:
         local=root/'DWG-Alcide'/'Tools'
         paths.extend(sorted(local.glob('ODAFileConverter-*/ODAFileConverter.exe'),reverse=True))
-        paths.extend(sorted((root/'Packages'/'OpenAI.Codex_2p2nqsd0c76g0'/'LocalCache'/'Local'/'DWG-Alcide'/'Tools').glob('ODAFileConverter-*/ODAFileConverter.exe'),reverse=True))
     for key in ('PROGRAMFILES','PROGRAMFILES(X86)'):
         if os.environ.get(key):paths.extend(Path(os.environ[key]).glob('ODA/ODAFileConverter*/ODAFileConverter.exe'))
     found=shutil.which('ODAFileConverter.exe')
@@ -95,7 +108,7 @@ def source_key(source):
 def register_source_conversion(source, converted):
     # Reuse only the application's ODA conversion, never the edited render document.
     # Copy to a private transaction directory; the regular audit still runs on first use.
-    global _SOURCE_CACHE,_SOURCE_MEMORY_KEY,_SOURCE_MEMORY_BYTES,_WARM_JOB
+    global _SOURCE_CACHE,_WARM_JOB
     converted=Path(converted)
     if not converted.is_file():return False
     key=source_key(source)
@@ -123,7 +136,8 @@ def source_document(source):
             if blob is not None:_SOURCE_MEMORY_KEY,_SOURCE_MEMORY_BYTES=key,blob
         except Exception:pass  # Preparation failure keeps the regular reader available.
     if key==_SOURCE_MEMORY_KEY and _SOURCE_MEMORY_BYTES is not None:
-        try:return pickle.loads(_SOURCE_MEMORY_BYTES)
+        try:
+            doc=pickle.loads(_SOURCE_MEMORY_BYTES);declare_missing_layers(doc);return doc
         except Exception:_SOURCE_MEMORY_KEY=None;_SOURCE_MEMORY_BYTES=None
     if _SOURCE_CACHE is None:_SOURCE_CACHE=tempfile.TemporaryDirectory(prefix='alcide-save-source-')
     cached=_SOURCE_CACHE_FILES.get(key)
@@ -131,7 +145,7 @@ def source_document(source):
         cached=Path(_SOURCE_CACHE.name)/(uuid.uuid4().hex+'.dxf')
         convert(source,cached,'DXF')
         # Cache only validated conversions; conversion failure never poisons it.
-        doc=ezdxf.readfile(cached);audit=doc.audit()
+        doc=ezdxf.readfile(cached);audit=doc.audit();declare_missing_layers(doc)
         if audit.has_errors:
             cached.unlink(missing_ok=True)
             raise ValueError('Le DWG source présente des erreurs de structure après conversion.')
@@ -141,7 +155,7 @@ def source_document(source):
         _remember_source(key,doc)
         return doc
     try:
-        doc=ezdxf.readfile(cached);audit=doc.audit()
+        doc=ezdxf.readfile(cached);audit=doc.audit();declare_missing_layers(doc)
         if audit.has_errors:raise ValueError('Cache de sauvegarde invalide.')
         _remember_source(key,doc)
         return doc
@@ -263,7 +277,7 @@ def verify_target_version(path,expected):
     if expected is None:return
     try:current=file_hash(path)
     except OSError:current=None
-    if current!=expected:raise ValueError('Le DWG sur disque a changé. Utilisez Enregistrer sous avec un autre nom ou rouvrez le fichier.')
+    if current!=expected:raise ValueError('Le fichier sur disque a changé. Utilisez Enregistrer sous avec un autre nom ou rouvrez le fichier.')
 
 def _write_verified_file(source,path,backup=False,expected_target_hash=None):
     """Use one open handle, a normal non-DWG name, then atomic replacement."""
@@ -272,6 +286,9 @@ def _write_verified_file(source,path,backup=False,expected_target_hash=None):
     try:
         with os.fdopen(fd,'wb') as target,source.open('rb') as stream:
             shutil.copyfileobj(stream,target,1024*1024);target.flush();os.fsync(target.fileno())
+        # Verify staged bytes before touching the original or its backup.
+        if file_hash(source)!=file_hash(staged):
+            raise OSError('Copie incomplète ou altérée : le fichier original est conservé.')
         verify_target_version(path,expected_target_hash)
         if backup and path.exists():
             # The candidate is already verified. Keep the old bytes before replacement.

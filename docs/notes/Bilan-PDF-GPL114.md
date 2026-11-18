@@ -10,9 +10,9 @@ Les chiffres concernent les fichiers présents pendant cette passe ; certains di
 
 | PDF | Calques OCG | Objets CAD | Textes |
 |---|---:|---:|---:|
-| Plan de test A (coffrage) | 30 | 116389 | 1636 |
-| Plan de test B (armatures) | 24 | 36712 | 1686 |
-| Plan de test C (armatures) | 26 | 36244 | 1284 |
+| EXE 03 - Plan du RDC - ind 0.pdf | 30 | 116389 | 1636 |
+| EXE 04 - Armatures du RDC - ind 0.pdf | 24 | 36712 | 1686 |
+| EXE 05- Armatures PH RDC et SRP - ind 0.pdf | 26 | 36244 | 1284 |
 
 Un calque supplémentaire reçoit les objets sans OCG. Calques homonymes distincts, état masqué conservé, caractères incompatibles avec DXF renommés avec correspondance dans les métadonnées.
 
@@ -21,7 +21,7 @@ Un calque supplémentaire reçoit les objets sans OCG. Calques homonymes distinc
 - Exécution dans le moteur Windows compilé : aperçu Poppler, dialogue de page/échelle, ouverture et calques.
 - Trois plans convertis puis ouverts dans ALCIDE ; captures alcide-1.png à alcide-3.png comparées aux rendus Poppler original-1.png à original-3.png.
 - Mode détails complets et zoom sur les tableaux : textes présents et lisibles. En mode automatique, les textes trop petits sont volontairement allégés au dézoom.
-- Sur Plan B : modification d’un trait, Ctrl+Z, masquage puis réaffichage du calque FER 06. Sauvegarde DWG puis réouverture : 36 712 objets et tous les calques retrouvés.
+- Sur EXE04 : modification d’un trait, Ctrl+Z, masquage puis réaffichage du calque FER 06. Sauvegarde DWG puis réouverture : 36 712 objets et tous les calques retrouvés.
 - Le contrôle strict de sauvegarde DWG est conservé. Aucun nouveau contournement de validation.
 - Inspection du moteur empaqueté : aucun module PyMuPDF/fitz et aucune bibliothèque native MuPDF. Le fichier adaptateur optionnel d’ezdxf nommé pymupdf.py reste du code MIT d’ezdxf, sans bibliothèque AGPL incluse ; son import est exclu.
 

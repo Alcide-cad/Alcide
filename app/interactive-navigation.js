@@ -12,7 +12,7 @@
  overlay.addEventListener('pointerup',()=>{if(moving){clearTimeout(timer);timer=setTimeout(finish,80);}},true);
  window.addEventListener('blur',()=>{if(moving)finish();});
  draw=function(){const started=performance.now(),current=key();
-  if(moving&&snapshot&&snapshot.key===current){const ratio=view.s/snapshot.view.s,shift=Math.hypot(view.tx-ratio*snapshot.view.tx,view.ty-ratio*snapshot.view.ty);
+  if(!window.paperCapture116&&moving&&snapshot&&snapshot.key===current){const ratio=view.s/snapshot.view.s,shift=Math.hypot(view.tx-ratio*snapshot.view.tx,view.ty-ratio*snapshot.view.ty);
    if(ratio>=.4&&ratio<=2.5&&shift<Math.max(w,h)*.65){const m=matrix(view).multiply(matrix(snapshot.view).inverse());ctx.setTransform(dpr,0,0,dpr,0,0);ctx.globalAlpha=1;ctx.fillStyle=window.Theme09?.background()||'#111820';ctx.fillRect(0,0,w,h);ctx.setTransform(dpr*m.a,dpr*m.b,dpr*m.c,dpr*m.d,dpr*m.e,dpr*m.f);ctx.imageSmoothingEnabled=true;ctx.drawImage(buffer,0,0,buffer.width/dpr,buffer.height/dpr);ctx.setTransform(dpr,0,0,dpr,0,0);window.OrderedTextDrawing?.retainedTop?.();drawOverlay();stats.previewFrames++;stats.lastPreviewMs=performance.now()-started;return;}
   }
   vectorDraw();window.OrderedTextDrawing?.paintTop?.(ctx);lastVector={key:current,view:{...view}};stats.vectorFrames++;stats.lastVectorMs=performance.now()-started;if(moving)capture();

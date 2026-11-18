@@ -5,10 +5,10 @@ paint operations are counted in the returned report, never called vector data.
 """
 from pathlib import Path
 from collections import Counter
-import base64, math, re, json, os, hashlib
+import math, re, json, os, hashlib
 import ezdxf
 import pdf_gpl_backend as backend
-from shapely.geometry import Polygon, LineString, GeometryCollection, box
+from shapely.geometry import LineString, GeometryCollection, box
 from shapely.ops import unary_union, polygonize
 from ezdxf.enums import TextEntityAlignment
 
@@ -236,7 +236,7 @@ def convert(path, target, page=0, scale=1, unit='cm', include_hidden=True):
                 if fontname not in style_map:
                     name='PDF_POLICE_'+str(len(style_map)+1);low=fontname.lower();family='cour' if 'cour' in low else 'times' if 'times' in low else 'arial';bold='bold' in low;italic=any(t in low for t in ('italic','oblique'));suffix=('bi' if family!='arial' else 'bi') if bold and italic else ('bd' if family=='arial' else 'bd') if bold else 'i' if italic else '';filename=_font_file(fontname) or family+suffix+'.ttf';native.styles.new(name,dxfattribs={'font':filename});style_map[fontname]=name
                     if not _font_file(fontname) and not any(n in low for n in ['arial','helvetica','times','courier']):counts['fontSubstitutions']+=1
-                direction=span.get('dir',(1,0));start=mapped(chars[0][2]);end=mapped(span['end']);angle=math.degrees(math.atan2(end[1]-start[1],end[0]-start[0]));at=attrs(span.get('layer'),span.get('color'),span.get('opacity',1));at.update(style=style_map[fontname],height=span['size']*cap*factor,rotation=angle)
+                start=mapped(chars[0][2]);end=mapped(span['end']);angle=math.degrees(math.atan2(end[1]-start[1],end[0]-start[0]));at=attrs(span.get('layer'),span.get('color'),span.get('opacity',1));at.update(style=style_map[fontname],height=span['size']*cap*factor,rotation=angle)
                 if not page_clip.covers(box(*span['bbox'])):counts['croppedText']+=1
                 if not page_clip.intersects(box(*span['bbox'])):continue
                 entity=space.add_text(text,dxfattribs=at)

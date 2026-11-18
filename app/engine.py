@@ -1,4 +1,4 @@
-import sys, json, os, time, subprocess, hashlib, tempfile, traceback, math, gzip, re
+import sys, json, os, time, subprocess, hashlib, tempfile, traceback, math, gzip, re, base64, zlib
 from pathlib import Path
 import ezdxf, orjson, gc, copy
 import dwg_export
@@ -12,9 +12,22 @@ from ezdxf.addons.drawing import Frontend, RenderContext
 from ezdxf.addons.drawing.backend import Backend
 from ezdxf.addons.drawing.config import Configuration
 from ezdxf.addons.drawing.properties import Filling
+import ezdxf.addons.drawing.properties as drawing_properties187
+_load_line_pattern187=drawing_properties187._load_line_pattern
+def load_line_pattern187(linetypes):
+    # 1.0.87 : les types complexes (texte/forme) gardent leurs tirets au lieu d'être tracés continus.
+    patterns=_load_line_pattern187(linetypes)
+    for lt in linetypes:
+        name=lt.dxf.name.upper()
+        if not patterns.get(name):
+            fallback=line_patterns.complex_pattern(lt)
+            if fallback:patterns[name]=fallback
+    return patterns
+drawing_properties187._load_line_pattern=load_line_pattern187
 import curve_precision126
 curve_precision126.install()
-from ezdxf.colors import int2rgb, aci2rgb
+from ezdxf.colors import aci2rgb
+from ezdxf.math import Matrix44
 from ezdxf.lldxf.encoding import decode_dxf_unicode
 from ezdxf.enums import TextEntityAlignment
 
@@ -24,9 +37,20 @@ SOURCE = None
 WARNINGS = []
 DOCUMENTS = {}
 ACTIVE = None
-CACHE_VERSION = 'alcide-paper155'
+CACHE_VERSION = 'alcide-native-snaps189'
 
 SCANNED_FONT_DIRS=set()
+
+REBAR_PACKED='zb64:'
+def unpack_rebar_payload(text):
+    # Les armatures volumineuses (poutres, filants) sont compressées pour rester sous la limite XDATA de 16 Ko.
+    if not text.startswith(REBAR_PACKED):return text
+    try:
+        z=zlib.decompressobj();raw=z.decompress(base64.b64decode(text[len(REBAR_PACKED):]),4000000)
+    except zlib.error as error:raise ValueError('Métadonnées d’armature illisibles.') from error
+    if z.unconsumed_tail:raise ValueError('Métadonnées d’armature trop volumineuses.')
+    return raw.decode('ascii')
+    return text
 
 def install_exact_font_matching():
     from ezdxf.fonts.font_manager import FontCache
@@ -421,15 +445,21 @@ def read_converted(filename, progressive=False):
     if progressive:send_preview()
     doc=ezdxf.read(StringIO(text[:start]+''.join(kept)+text[end:]))
     doc._alcide_lines=lines;doc._alcide_order=order;doc.filename=str(filename)
+    return declare_missing_layers(doc)
+
+def declare_missing_layers(doc):
+    # Entities may reference layers absent from the LAYER table (AutoCAD accepts it).
+    added=dwg_export.declare_missing_layers(doc)
+    if added:WARNINGS.append(f'{len(added)} calque(s) utilisé(s) mais non déclaré(s) ont été ajoutés : '+', '.join(added[:5])+('…' if len(added)>5 else '')+'.')
     return doc
 
 def read_doc(filename):
-    try:return ezdxf.readfile(filename)
+    try:return declare_missing_layers(ezdxf.readfile(filename))
     except ezdxf.DXFError:
         from ezdxf import recover
         doc,auditor=recover.readfile(filename)
         WARNINGS.append(f'DXF récupéré : {len(auditor.fixes)} corrections, {len(auditor.errors)} erreurs résiduelles.')
-        return doc
+        return declare_missing_layers(doc)
 
 def cache_info():
     files=[p for p in cache_dir().iterdir() if p.is_file() and not p.is_symlink() and re.fullmatch(r'[0-9a-f]{24,32}(?:-[0-9a-f]{12})?\.(?:dxf|scene\.gz|tmp|warnings\.json)',p.name)]
@@ -468,6 +498,42 @@ def block_has_fills144(doc,name,ancestors=()):
             cache[name]=True;return True
     cache[name]=False;return False
 
+def dependency_warnings185(doc, source):
+    warnings=[]
+    for block in doc.blocks:
+        flags=block.block.dxf.get('flags',0)
+        ref=block.block.dxf.get('xref_path','')
+        if flags & 12 and ref:
+            filename=Path(os.path.expandvars(ref))
+            if not filename.is_absolute():filename=Path(source).parent/filename
+            if not filename.is_file():warnings.append('Référence externe introuvable : '+ref+' (définition conservée).')
+    used={e.dxf.get('style','Standard') for e in doc.entitydb.values() if e.is_alive and e.dxftype() in ('TEXT','MTEXT')}
+    from ezdxf.fonts import fonts
+    for name in sorted(used):
+        if name not in doc.styles:continue
+        filename=doc.styles.get(name).dxf.get('font','')
+        if Path(filename).suffix.lower() not in ('.ttf','.otf','.ttc') or Path(filename).is_file():continue
+        try:resolved=fonts.find_font_face(filename).filename
+        except Exception:resolved=''
+        if Path(resolved).name.casefold()!=Path(filename).name.casefold():warnings.append('Police absente : '+filename+' (affichage de remplacement, style conservé).')
+    return warnings
+
+def block_curve_snaps185(insert, ancestors=()):
+    """Exact transformed centres from native virtual entities; no tessellation guesses."""
+    name=insert.dxf.name
+    if name in ancestors or len(ancestors)>=32:return []
+    result=[]
+    try:
+        for child in insert.virtual_entities():
+            typ=child.dxftype()
+            if typ=='INSERT':result.extend(block_curve_snaps185(child,ancestors+(name,)))
+            elif typ in ('CIRCLE','ARC','ELLIPSE'):
+                center=child.dxf.center if typ=='ELLIPSE' else child.ocs().to_wcs(child.dxf.center)
+                result.append(point(center))
+    except (ValueError,TypeError,AttributeError,ezdxf.DXFError):
+        pass
+    return result
+
 def metadata(e, layout, doc):
     d = e.dxf
     layer = doc.layers.get(d.layer)
@@ -478,7 +544,7 @@ def metadata(e, layout, doc):
              transparency=0 if e.is_transparency_by_block else round(e.transparency*100), tags=tags, snap=[], shape=None)
     if e.has_xdata('ALCIDE_REBAR'):
         try:
-            data=json.loads(''.join(tag.value for tag in e.get_xdata('ALCIDE_REBAR') if tag.code==1000))
+            data=json.loads(unpack_rebar_payload(''.join(tag.value for tag in e.get_xdata('ALCIDE_REBAR') if tag.code==1000)))
             if data.get('assembly',{}).get('kind') in ('bar','mesh') or isinstance(data.get('table'),dict):
                 data['origin']=point(e.dxf.insert);m['reinforcement']=data
         except (ValueError,AttributeError,TypeError):pass
@@ -516,6 +582,7 @@ def metadata(e, layout, doc):
     if typ == 'HATCH':
         m.update(pattern=d.pattern_name, patternScale=d.pattern_scale, patternAngle=d.pattern_angle)
         if e.bgcolor is not None:m['backgroundColor']='#%02x%02x%02x'%tuple(e.bgcolor)
+        if e.gradient is not None:m['gradient']=gradient_meta(e.gradient)
         loops=[];editable=True;handles=[];ocs=e.ocs();elevation=e.dxf.elevation.z
         hatch_point=lambda p:point(ocs.to_wcs((p[0],p[1],elevation)))
         for path in e.paths:
@@ -535,6 +602,10 @@ def metadata(e, layout, doc):
         m.update(name=d.name, rotation=d.rotation, scale=[d.xscale,d.yscale,d.zscale])
         tags['2'] = d.name
         m['snap'] = [point(d.insert)]
+        centers=block_curve_snaps185(e)
+        if centers:
+            m['snap'].extend(centers)
+            m['snapKinds']=['extrémité']+['centre']*len(centers)
     if typ == 'POINT':
         m['snap'] = [point(d.location)]
     if typ == 'LINE':
@@ -618,6 +689,29 @@ def append_graphic_instance(target,template,dx,dy):
         target['primitives'].append(dict(**{k:v for k,v in p.items() if k not in ('paths','offset')},offset=[offset[0]+dx,offset[1]+dy]))
     b=template['bounds'];target['bounds']=[min(target['bounds'][0],b[0]+dx),min(target['bounds'][1],b[1]+dy),max(target['bounds'][2],b[2]+dx),max(target['bounds'][3],b[3]+dy)]
 
+def split_plinegen187(e,paths):
+    # 1.0.87 : sans PLINEGEN (code 70, bit 128), AutoCAD recommence le motif à chaque sommet de la polyligne.
+    try:
+        t=e.dxftype()
+        if t=='LWPOLYLINE':
+            if e.dxf.get('flags',0)&128:return paths
+            verts=[(v.x,v.y) for v in e.vertices_in_wcs()]
+        elif t=='POLYLINE' and e.is_2d_polyline:
+            if e.dxf.get('flags',0)&128:return paths
+            verts=[(v.x,v.y) for v in e.points_in_wcs()]
+        else:return paths
+    except Exception:return paths
+    if len(verts)<3:return paths
+    keys={(round(x,5),round(y,5)) for x,y in verts}
+    out=[]
+    for ps in paths:
+        cur=[ps[0]]
+        for q in ps[1:]:
+            cur.append(q)
+            if (round(q[0],5),round(q[1],5)) in keys:out.append(cur);cur=[q]
+        if len(cur)>1:out.append(cur)
+    return out
+
 class SceneBackend(Backend):
     def __init__(self, metas):
         super().__init__()
@@ -639,6 +733,7 @@ class SceneBackend(Backend):
         if item is None:return
         paths=[[point(p) for p in ps] for ps in paths]
         paths=[p for p in paths if p]
+        if native_dash and self.entity_stack:paths=split_plinegen187(self.entity_stack[-1][0],paths)
         if not paths:return
         color=props.color[:7]
         current=self.entity_stack[-1][0]
@@ -732,7 +827,14 @@ class NativeLineTypeStage145(LinetypeStage2d):
     # every dash to thousands of SVG segments. Clipping still runs upstream.
     def emit(self,method,geometry,properties):
         previous=getattr(self.scene_backend,'native_dash145',None)
-        self.scene_backend.native_dash145=tuple(self.pattern(properties)) or None
+        pattern=tuple(self.pattern(properties))
+        k=self.get_ltype_scale()
+        if pattern and abs(k-1)>1e-12:
+            # 1.0.87 : dans une fenêtre de présentation, ezdxf donne le motif en unités objet alors que la géométrie
+            # est déjà en unités papier. PSLTSCALE=1 : motif papier = motif × LTSCALE ; PSLTSCALE=0 : × échelle de la fenêtre.
+            vp=1/k;factor=vp if int(DOC.header.get('$PSLTSCALE',1)) else vp*vp
+            pattern=tuple(v*factor for v in pattern)
+        self.scene_backend.native_dash145=pattern or None
         try:return method(*geometry,properties)
         finally:self.scene_backend.native_dash145=previous
     def draw_line(self,start,end,properties):return self.emit(self.next_stage.draw_line,(start,end),properties)
@@ -914,7 +1016,6 @@ class RepeatedTextFrontend(Frontend):
 
 
 def scene(layout_name='Model'):
-    global WARNINGS
     started=time.perf_counter();phase=started;timings={}
     def mark(name):
         nonlocal phase
@@ -1056,7 +1157,7 @@ def scene(layout_name='Model'):
     for i in items:
         for j in range(2):b[j]=min(b[j],i['bounds'][j]);b[j+2]=max(b[j+2],i['bounds'][j+2])
     if not items and not native_visible:b=[0,0,100,100]
-    warnings=list(WARNINGS)
+    warnings=list(WARNINGS)+dependency_warnings185(DOC,SOURCE)
     if missing:warnings.append(f"{len(missing)} entités sans représentation visible : "+', '.join(sorted(set(m['type'] for m in missing))))
     if backend.images:warnings.append(f"{backend.images} images raster non affichées dans cette version.")
     if list(DOC.query('ACAD_PROXY_ENTITY')):warnings.append('Présence d’objets proxy : leur affichage peut être incomplet.')
@@ -1069,7 +1170,7 @@ def scene(layout_name='Model'):
         x=-float(layout.dxf.get('left_margin',0))-float(layout.dxf.get('plot_origin_x_offset',0))
         y=-float(layout.dxf.get('bottom_margin',0))-float(layout.dxf.get('plot_origin_y_offset',0))
         if width>0 and height>0:paper=dict(bounds=[x/units,y/units,(x+width)/units,(y+height)/units],widthMM=width,heightMM=height)
-    return dict(paper=paper,linetypeGlobalScale=float(DOC.header.get('$LTSCALE',1)),sceneTimings=timings,renderStats=dict(blockCacheHits=frontend.block_cache_hits,blockCacheMisses=frontend.block_cache_misses,blockCachePoints=frontend.block_cache_points,textCachePoints=frontend.text_cache_points,textCacheHits=frontend.text_cache_hits),fontResolution={name:font.filename for name,font in ctx.fonts.items()},linetypes={lt.dxf.name:[max(abs(v)*float(DOC.header.get('$LTSCALE',1)),1e-8) for v in lt.pattern_tags.compile() if v==0 or abs(v)>1e-10] for lt in DOC.linetypes},measurementScale=document_scale.read(DOC),layerInfo=layer_info(),nativeLines=native_lines,nativeStyles=native_styles,drawOrder=draw_order if native_lines else [],items=items,catalog=[m for handle,m in metas.items() if handle not in backend.items],bounds=b,requiresLocalRendering=any(abs(v)>100000 for v in b),layouts=DOC.layout_names(),layout=layout_name,source=SOURCE,
+    return dict(paper=paper,linetypeGlobalScale=float(DOC.header.get('$LTSCALE',1)),sceneTimings=timings,renderStats=dict(blockCacheHits=frontend.block_cache_hits,blockCacheMisses=frontend.block_cache_misses,blockCachePoints=frontend.block_cache_points,textCachePoints=frontend.text_cache_points,textCacheHits=frontend.text_cache_hits),fontResolution={name:font.filename for name,font in ctx.fonts.items()},linetypes={lt.dxf.name:[max(abs(v)*float(DOC.header.get('$LTSCALE',1)),1e-8) for v in line_patterns.render_pattern(lt)] for lt in DOC.linetypes},measurementScale=document_scale.read(DOC),layerInfo=layer_info(),nativeLines=native_lines,nativeStyles=native_styles,drawOrder=draw_order if native_lines else [],items=items,catalog=[m for handle,m in metas.items() if handle not in backend.items],bounds=b,requiresLocalRendering=any(abs(v)>100000 for v in b),layouts=DOC.layout_names(),layout=layout_name,source=SOURCE,
                 units=int(DOC.header.get('$INSUNITS',0)),warnings=warnings,
                 entities=len(metas)+len(native_lines),rendered=len(items)+native_visible,sceneSeconds=round(time.perf_counter()-started,3))
 
@@ -1244,6 +1345,36 @@ def alcide_hatch_definition(pattern,gap):
         out.append([a,[n[0]*g*shift,n[1]*g*shift],[n[0]*g,n[1]*g],[]])
     return out
 
+GRADIENT_TYPES=('LINEAR','CYLINDER','INVCYLINDER','SPHERICAL','INVSPHERICAL','HEMISPHERICAL','INVHEMISPHERICAL','CURVED','INVCURVED')
+def gradient_meta(g):
+    # Dégradé AutoCAD lu dans un HATCH : renvoyé à l’interface pour l’affichage et la modification.
+    hexa=lambda c:'#%02x%02x%02x'%tuple(c)
+    # 1.0.92 : types INV* et « une couleur » ramenés au type de base avec deux couleurs (permutées pour INV*) ; même rendu.
+    name=str(g.name or 'LINEAR').upper();c1=tuple(g.color1);tint=float(g.tint);angle=float(g.rotation)
+    c2=tinted_rgb(c1,tint) if g.one_color else tuple(g.color2)
+    if name.startswith('INV'):
+        name=name[3:];c1,c2=c2,c1
+        if name=='CURVED':angle+=180
+    if name not in GRADIENT_TYPES:name='LINEAR'
+    return dict(type=name,color1=hexa(c1),color2=hexa(c2),oneColor=False,tint=round(tint,6),angle=round(angle,6)%360,centered=bool(g.centered))
+def gradient_rgb(value):
+    if not isinstance(value,str) or not re.fullmatch(r'#[0-9a-fA-F]{6}',value):raise ValueError('Couleur de dégradé incorrecte.')
+    return ezdxf.colors.int2rgb(int(value[1:],16))
+def tinted_rgb(rgb,tint):
+    # Une couleur : teinte (vers le blanc) au-dessus de 0,5, ombre (vers le noir) en dessous.
+    t=max(0.0,min(1.0,float(tint)));target,k=((255,255,255),(t-.5)*2) if t>=.5 else ((0,0,0),(.5-t)*2)
+    return tuple(round(c+(g-c)*k) for c,g in zip(rgb,target))
+def apply_gradient(e,spec):
+    if not isinstance(spec,dict):raise ValueError('Dégradé incorrect.')
+    name=str(spec.get('type','LINEAR')).upper()
+    if name not in GRADIENT_TYPES:raise ValueError('Type de dégradé inconnu.')
+    angle=float(spec.get('angle',0));tint=float(spec.get('tint',.5))
+    if not math.isfinite(angle) or not math.isfinite(tint):raise ValueError('Angle ou teinte de dégradé incorrect.')
+    c1=gradient_rgb(spec.get('color1'));one=bool(spec.get('oneColor'))
+    c2=tinted_rgb(c1,tint) if one else gradient_rgb(spec.get('color2'))
+    if spec.get('swap'):
+        c1,c2=c2,c1;one=False
+    e.set_gradient(color1=c1,color2=c2,rotation=angle%360,centered=1.0 if spec.get('centered',True) else 0.0,one_color=1 if one else 0,tint=max(0.0,min(1.0,tint)),name=name)
 def apply_hatch_style(e,style):
     if e.dxftype()!='HATCH':raise ValueError('Choisissez une hachure.')
     name=style.get('pattern',e.dxf.pattern_name)
@@ -1257,11 +1388,34 @@ def apply_hatch_style(e,style):
         else:e.set_pattern_fill(name,color=e.dxf.color,angle=angle,scale=1,definition=alcide_hatch_definition(name,3.175*scale))
     else:
         e.set_pattern_scale(scale);e.set_pattern_angle(angle)
+    if style.get('gradient'):apply_gradient(e,style['gradient'])
+    if style.get('backgroundGradient'):
+        # 1.0.89 : fond dégradé sous un motif. Aperçu : fond porté par la couleur 1 (repeinte en dégradé par l’éditeur) ;
+        # à l’export, une vraie hachure dégradée est posée juste dessous (voir add_background_gradient).
+        if not isinstance(style['backgroundGradient'],dict):raise ValueError('Dégradé de fond incorrect.')
+        e.bgcolor=gradient_rgb(style['backgroundGradient'].get('color1'))
+        return
     if 'backgroundColor' in style:
         color=style['backgroundColor']
         if color is None:del e.bgcolor
         elif re.fullmatch(r'#[0-9a-fA-F]{6}',color):e.bgcolor=ezdxf.colors.int2rgb(int(color[1:],16))
         else:raise ValueError('Couleur de fond incorrecte.')
+
+def place_before(layout,item,ref):
+    # Place item juste sous ref, en conservant l’ordre d’affichage existant (ordre physique + SORTENTSTABLE).
+    old=dict(layout.get_redraw_order())
+    ordered=sorted((x for x in layout if x is not item),key=lambda x:(int(old.get(x.dxf.handle,x.dxf.handle),16) if old else 0))
+    if not old:ordered=[x for x in layout.entity_space.entities if x is not item]
+    i=next((k for k,x in enumerate(ordered) if x is ref),len(ordered));ordered.insert(i,item)
+    layout.entity_space.entities[:]=ordered
+    if old:layout.set_redraw_order([(x.dxf.handle,format(k+1,'X')) for k,x in enumerate(ordered)])
+def add_background_gradient(pattern_hatch,spec):
+    # Hachure dégradée native, même contour, sous la hachure à motif (deux HATCH : dégradé puis motif).
+    bg=pattern_hatch.copy();layout=pattern_hatch.get_layout();layout.add_entity(bg)
+    if bg.bgcolor is not None:del bg.bgcolor
+    bg.set_solid_fill(color=pattern_hatch.dxf.color);apply_gradient(bg,spec)
+    if pattern_hatch.bgcolor is not None:del pattern_hatch.bgcolor
+    place_before(layout,bg,pattern_hatch);return bg
 
 def apply_hatch_geometry(e,operations):
     for op in operations:
@@ -1488,7 +1642,6 @@ def regenerate_arrows(out,edits):
         for e in list(layout):
             if e.dxftype() not in ('LINE','LWPOLYLINE'):continue
             spec=None
-            edit=(edits or {}).get(e.dxf.handle)
             if e.has_xdata('ALCIDE_ARROWS'):
                 try:spec=json.loads(''.join(t.value for t in e.get_xdata('ALCIDE_ARROWS') if t.code==1000))
                 except ValueError:spec=None
@@ -1633,6 +1786,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         view=record['view'];assembly=record['assembly']
         if assembly.get('kind') not in ('bar','mesh','schedule'):raise ValueError('Type d’armature incorrect.')
         payload=json.dumps({'table':record['table'],'view':view} if assembly.get('kind')=='schedule' else {'assembly':assembly,'view':view},ensure_ascii=True,separators=(',',':'))
+        if len(payload)>14000:payload=REBAR_PACKED+base64.b64encode(zlib.compress(payload.encode('ascii'),9)).decode('ascii')
         if len(payload)>14000:raise ValueError('Armature trop complexe pour les métadonnées DWG.')
         if 'ALCIDE_REBAR' not in out.appids:out.appids.new('ALCIDE_REBAR')
         layer=edit.get('props',{}).get('layer','ALCIDE_ARMATURES')
@@ -1691,6 +1845,8 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             center,start,end=pts
             e=layout.add_arc(center,math.dist(center,start),math.degrees(math.atan2(start[1]-center[1],start[0]-center[0])),math.degrees(math.atan2(end[1]-center[1],end[0]-center[0])),dxfattribs=attrs)
         else:raise ValueError('Objet créé non pris en charge.')
+        # 1.0.87 : ALCIDE trace le motif en continu le long des polylignes ; PLINEGEN garde le même rendu dans AutoCAD.
+        if e.dxftype()=='LWPOLYLINE':e.dxf.flags=e.dxf.get('flags',0)|128
         copies[handle]=e
     import clipboard131
     clipboard131.import_edits(out,edits or {},copies)
@@ -1781,6 +1937,8 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             if 'color' in edit.get('props',{}):unify_dimension_color(e)
         if edit.get('hatchStyle'):apply_hatch_style(e,edit['hatchStyle'])
         if edit.get('hatchGeometry'):apply_hatch_geometry(e,edit['hatchGeometry'])
+        if (edit.get('hatchStyle') or {}).get('backgroundGradient') and e.dxftype()=='HATCH':
+            draw_order_companions.setdefault(handle,[]).append(add_background_gradient(e,edit['hatchStyle']['backgroundGradient']))
         if edit.get('textStyle'):e=apply_text_style(e,edit['textStyle']);copies[handle]=e
         geometry=edit.get('geometry')
         if geometry:
@@ -1800,14 +1958,12 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             else:raise ValueError('Modification géométrique non prise en charge.')
         rotation=edit.get('rotation')
         if rotation:
-            from ezdxf.math import Matrix44
             pivot=rotation['pivot'];angle=float(rotation['angle'])
             if len(pivot)!=2 or not all(math.isfinite(float(v)) for v in pivot) or not math.isfinite(angle):raise ValueError('Rotation incorrecte.')
             e.transform(Matrix44.chain(Matrix44.translate(-float(pivot[0]),-float(pivot[1]),0),Matrix44.z_rotate(math.radians(angle)),Matrix44.translate(float(pivot[0]),float(pivot[1]),0)))
         dx,dy=edit.get('dx',0),edit.get('dy',0)
         if dx or dy:e.translate(float(dx),float(dy),0)
         for mirror in edit.get('nativeMirrorOps',[]):
-            from ezdxf.math import Matrix44
             if 'scale' in mirror:
                 pivot=mirror['a'];factor=float(mirror['scale'])
                 if len(pivot)!=2 or not all(math.isfinite(float(v)) for v in pivot) or not math.isfinite(factor) or factor<=0:raise ValueError('Mise à l’échelle incorrecte.')
@@ -1834,7 +1990,6 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         if len(pts)!=4:raise ValueError('Cadre d’image incorrect.')
         src=str(spec.get('src',''));m=re.match(r'data:image/(png|jpe?g);base64,(.*)$',src,re.S)
         if not m:raise ValueError('Image intégrée illisible.')
-        import base64
         data=base64.b64decode(m.group(2));ext='png' if m.group(1)=='png' else 'jpg'
         folder=path.parent/(path.stem+'_images');folder.mkdir(exist_ok=True)
         stem=re.sub(r'[^\w.\- ]+','_',Path(str(spec.get('name') or 'image')).stem)[:60] or 'image'
@@ -1867,6 +2022,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         layout=outline.get_layout();fill=layout.add_hatch(color=256,dxfattribs={'layer':outline.dxf.layer})
         draw_order_companions[handle]=[fill]
         pattern=props.get('fillPattern','SOLID')
+        if props.get('fillGradient'):pattern='SOLID'
         if pattern!='SOLID':
             if pattern not in ALCIDE_HATCH_PATTERNS and pattern not in ACAD_HATCH_PATTERNS:raise ValueError('Motif de hachure incorrect.')
             gap=float(props.get('fillSpacing',1));angle=float(props.get('fillAngle',0))
@@ -1889,7 +2045,12 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         fill.transparency=max(0,min(1,float(alpha)/100))
         if outline.dxftype()=='CIRCLE':
             fill.paths.add_edge_path().add_arc(outline.dxf.center.vec2,outline.dxf.radius,0,360,ccw=True)
-        else:fill.paths.add_polyline_path([(p[0],p[1]) for p in outline.get_points('xy')],is_closed=True)
+        else:fill.paths.add_polyline_path([(p[0],p[1],p[2]) for p in outline.get_points('xyb')],is_closed=True)
+        if props.get('fillGradient'):apply_gradient(fill,props['fillGradient'])
+        def background_gradient():
+            if props.get('fillBackgroundGradient') and pattern!='SOLID':
+                bg=add_background_gradient(fill,props['fillBackgroundGradient']);draw_order_companions[handle]=[bg,fill];return [bg]
+            return []
         if props.get('fillOnly'):
             ref=props.get('fillReference') or edit['drawing']['points']
             current=edit.get('geometry',{}).get('points',edit['drawing']['points'])
@@ -1899,11 +2060,12 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             for ring in props.get('fillHoles',[]):
                 vertices=[(c[0]+co*(p[0]-a[0])-si*(p[1]-a[1])+edit.get('dx',0),c[1]+si*(p[0]-a[0])+co*(p[1]-a[1])+edit.get('dy',0)) for p in ring]
                 fill.paths.add_polyline_path(vertices,is_closed=True,flags=0)
+            background_gradient()
             copies[handle]=fill
             layout.delete_entity(outline)
             continue
         layout.set_redraw_order([*layout.get_redraw_order(),(fill.dxf.handle,outline.dxf.handle),(outline.dxf.handle,fill.dxf.handle)])
-        out.groups.new(description='Forme remplie DWG-Alcide',selectable=True).set_data([outline,fill])
+        out.groups.new(description='Forme remplie DWG-Alcide',selectable=True).set_data([outline,*background_gradient(),fill])
     if 'ALCIDE_COTES' not in out.layers:out.layers.new('ALCIDE_COTES',dxfattribs={'color':3})
     chain_groups={}
     for d in dimensions:
@@ -2012,7 +2174,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
     for layer in final_locks:layer.lock()
     with tempfile.TemporaryDirectory(prefix='alcide-dxf-export-') as folder:
         temp=Path(folder)/'drawing.dxf';out.saveas(temp);check=ezdxf.readfile(temp)
-        check.audit();result=dwg_export.publish_file(temp,path,backup=backup)
+        check.audit();result=dwg_export.publish_file(temp,path,backup=backup,expected_target_hash=expected_target_hash)
     return dict(**result,entities=len(check.modelspace()),dimensions=len(dimensions),verified=True)
 
 def decompose_all(changes,dimensions,edits,layer_changes):
@@ -2116,7 +2278,9 @@ def dispatch(r):
         try:
             for spec in r['requests']:
                 foreign=spec.get('clipboard131')
-                DOC=ezdxf.read(StringIO(foreign['dxf'])) if foreign else previous
+                if foreign:
+                    DOC=ezdxf.read(StringIO(foreign['dxf']));dwg_export.declare_missing_layers(DOC)
+                else:DOC=previous
                 if foreign:spec={**spec,'source':foreign['handle']}
                 result.extend(fn([spec]))
             return result
@@ -2141,12 +2305,16 @@ if __name__=='__main__':
     for stream in (sys.stdin,sys.stdout,sys.stderr):
         if hasattr(stream,'reconfigure'):stream.reconfigure(encoding='utf8')
     for line in sys.stdin:
+        request={}
         try:
-            request=json.loads(line);result=dispatch(request)
+            request=json.loads(line)
+            if not isinstance(request,dict):request={};raise ValueError('Requête moteur invalide.')
+            result=dispatch(request)
             print(json.dumps(dict(id=request['id'],result=result),ensure_ascii=False,allow_nan=False),flush=True)
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
             print(json.dumps(dict(id=request.get('id'),error=str(e)),ensure_ascii=False),flush=True)
+
 
 
 

@@ -36,7 +36,7 @@
     select.value='@references';renderReferences();update();return values.join(', ');
    },
    onCancel(){referenceValues=prior;select.value=previous;},
-   onDone(){picking=false;if(context?.doc===activeId&&context.token===saveToken){dialog.showModal();renderReferences();update();}else{context=null;preview.clear();}}
+   onDone(abort,count){picking=false;if(context?.doc===activeId&&context.token===saveToken){if(!abort&&count>0&&found().length){apply.click();preview.clear();context=null;requestRender();return;}dialog.showModal();renderReferences();update();}else{context=null;preview.clear();}}
   });
  };
  const style=document.createElement('style');style.textContent='.rebar-filter-references{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.rebar-filter-references button{padding:5px 9px;border-radius:15px}#rebar-family-filter>button[type=button]{margin-bottom:10px}';document.head.append(style);

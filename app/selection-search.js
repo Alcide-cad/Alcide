@@ -8,7 +8,7 @@
   const old=state;if(!old)return;
   state=null;bar.hidden=true;
   if(abort)old.onCancel?.();
-  old.onDone?.(abort);
+  old.onDone?.(abort,old.count);
  }
  window.FilterReferencePicker={
   start(options){if(state)finish(true);state={...options,ids:new Set(),count:0};label.textContent=options.label+' · cliquez les objets de référence';bar.hidden=false;options.dialog.close();overlay.focus({preventScroll:true});},
@@ -91,7 +91,7 @@
  $('#selection-search-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{if(dialog.open||zonePick||referencePick)return;clearTimeout(timer);preview.clear();context=null;requestRender();});
  $('#selection-search-reset').onclick=()=>{chosen=blank();context.emptyFamily=false;$('#selection-text-query').value='';$('#selection-block-query').value='';$('#selection-search-invert').checked=false;update();};$('#selection-search-reference').onclick=()=>{const e=entities.get(context?.ids[0]);if(!e)return status('Sélectionnez d’abord un objet de référence.');const r=selectionRecord(e,context.records);for(const k of keys)chosen[k]=new Set(Array.isArray(r[k])?r[k]:[r[k]]);context.emptyFamily=false;update();};
  $('#selection-search-apply').onclick=()=>{if(!valid())return status('Le dessin a changé : relancez le filtre.');update();if($('#selection-search-apply').disabled)return;const action=$('#selection-search-action').value,protect=$('#selection-search-protect').checked,ids=new Set(result);if(action==='select'){selected=ids;dialog.close();refresh(false);status(selected.size+' objet(s) sélectionné(s).');return;}const targets=action==='isolate'?selectionIsolationTargets(context.last.all,ids,context.all,protect):[...ids].map(id=>entities.get(id)).filter(e=>e&&(!protect||!isLocked(e)));const before=snapshot();for(const e of targets)edits[e.id]={...edits[e.id],[action==='delete'?'deleted':'hidden']:true};selected=action==='isolate'?ids:new Set();dialog.close();if(targets.length)commit(before);else refresh(false);status(targets.length+' objet(s) '+(action==='delete'?'supprimés':'masqués')+' · Ctrl+Z pour annuler'+(action==='isolate'?' · hors portée inchangé':''));};
- for(const b of dialog.querySelectorAll('[data-cleanup]'))b.onclick=()=>{const types={hatch:['HATCH','SOLID','TRACE'],text:['TEXT','MTEXT'],dimension:['DIMENSION'],block:['INSERT']}[b.dataset.cleanup];chosen=blank();chosen.type=new Set(types.filter(v=>context.facets.type.has(v)));context.emptyFamily=!chosen.type.size;modeUI(null);$('#selection-text-query').value='';$('#selection-block-query').value='';$('#selection-search-invert').checked=false;update();};
+ for(const b of dialog.querySelectorAll('[data-cleanup]'))b.onclick=()=>{const types={hatch:['HATCH','HATCH:PATTERN','HATCH:SOLID','HATCH:GRADIENT','SOLID','TRACE'],text:['TEXT','MTEXT'],dimension:['DIMENSION'],block:['INSERT']}[b.dataset.cleanup];chosen=blank();chosen.type=new Set(types.filter(v=>context.facets.type.has(v)));context.emptyFamily=!chosen.type.size;modeUI(null);$('#selection-text-query').value='';$('#selection-block-query').value='';$('#selection-search-invert').checked=false;update();};
  function loadPresets(){try{const a=JSON.parse(localStorage.getItem('selectionFilterPresets')||'[]');return Array.isArray(a)?a.filter(p=>p&&typeof p.name==='string'&&p.criteria).slice(0,30):[];}catch{return [];}}let presets=loadPresets();function presetList(){const old=$('#selection-preset').value;$('#selection-preset').replaceChildren(new Option('Mes filtres…',''));for(const p of presets)$('#selection-preset').append(new Option(p.name,p.name));$('#selection-preset').value=presets.some(p=>p.name===old)?old:'';}
  $('#selection-preset-save').onclick=()=>{const name=$('#selection-preset-name').value.trim().slice(0,80);if(!name)return $('#selection-preset-name').focus();const p={name,criteria:Object.fromEntries(keys.map(k=>[k,[...chosen[k]]])),text:$('#selection-text-query').value,block:$('#selection-block-query').value,invert:$('#selection-search-invert').checked};presets=presets.filter(p=>p.name!==name);presets.push(p);presets=presets.slice(-30);localStorage.setItem('selectionFilterPresets',JSON.stringify(presets));presetList();$('#selection-preset').value=name;status('Filtre « '+name+' » enregistré.');};$('#selection-preset-delete').onclick=()=>{presets=presets.filter(p=>p.name!==$('#selection-preset').value);localStorage.setItem('selectionFilterPresets',JSON.stringify(presets));presetList();};
  $('#selection-preset').onchange=()=>{const p=presets.find(p=>p.name===$('#selection-preset').value);if(!p)return;chosen=blank();for(const k of keys)chosen[k]=new Set(Array.isArray(p.criteria[k])?p.criteria[k].filter(v=>typeof v==='string'):[]);context.emptyFamily=false;$('#selection-text-query').value=p.text||'';$('#selection-block-query').value=p.block||'';$('#selection-search-invert').checked=!!p.invert;$('#selection-search-action').value='select';$('#selection-preset-name').value=p.name;modeUI(null);update();};
@@ -174,7 +174,7 @@
  const reference=document.createElement('button');
  reference.id='selection-reference-pick';reference.type='button';reference.className='filter-reference-pick';
  reference.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m15 3 6 6-3 3-2-2-9 9H3v-4l9-9-2-2ZM5 16l3 3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg><span>Prélever sur le plan</span>';
- reference.title='Cliquez une ou plusieurs références, puis Entrée pour revenir aux filtres.';
+ reference.title='Cliquez une ou plusieurs références, puis Terminer ou Entrée pour sélectionner directement les objets correspondants (Échap annule).';
  heading.after(reference);
  reference.onclick=()=>{
   if(!valid())return;
@@ -188,7 +188,11 @@
     context.emptyFamily=false;update();return e.layer;
    },
    onCancel(){chosen=prior;},
-   onDone(){referencePick=false;if(valid()){dialog.showModal();update();}else{context=null;preview.clear();}}
+   onDone(abort,count){referencePick=false;if(!valid()){context=null;preview.clear();requestRender();return;}
+    // 1.0.89 : « Terminer » / Entrée applique directement la sélection prélevée (plus de retour au panneau pour valider).
+    // Seules les actions destructives (masquer, supprimer, isoler) repassent par le panneau, où l'aperçu reste obligatoire.
+    if(!abort&&count>0&&$('#selection-search-action').value==='select'){update();const ok=!$('#selection-search-apply').disabled;if(ok){$('#selection-search-apply').click();clearTimeout(timer);preview.clear();context=null;requestRender();return;}status('Aucun objet ne correspond aux références prélevées.');}
+    dialog.showModal();update();}
   });
  };
  const oldMode=modeUI;

@@ -12,7 +12,7 @@ from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfdevice import PDFTextDevice
 from pdfminer.pdftypes import resolve1, dict_value, list_value, stream_value, PDFObjRef
 from pdfminer.psparser import literal_name, PSLiteral
-from pdfminer.utils import apply_matrix_pt, mult_matrix, decode_text, translate_matrix
+from pdfminer.utils import apply_matrix_pt, mult_matrix, decode_text
 
 
 def _name(value):

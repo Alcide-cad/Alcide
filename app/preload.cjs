@@ -27,5 +27,5 @@ contextBridge.exposeInMainWorld('alcide',{readClipboard131:()=>ipcRenderer.invok
  saveDrawing:d=>ipcRenderer.invoke('save-drawing',d),exportDxf:d=>ipcRenderer.invoke('export-dxf',d),confirmClose:()=>ipcRenderer.invoke('confirm-close'),
  onWaitForDrawingSave:cb=>ipcRenderer.on('wait-for-drawing-save',()=>cb()),
  onAction:cb=>ipcRenderer.on('menu-action',(_,action)=>cb(action)),
- filePath:f=>webUtils.getPathForFile(f),onInitial:cb=>ipcRenderer.on('initial-file',(_,p)=>cb(p)),onProgress:cb=>ipcRenderer.on('load-progress',(_,data)=>cb(data))
+ filePath:f=>webUtils.getPathForFile(f),onInitial:cb=>ipcRenderer.on('initial-file',(_,p)=>cb(p)),onProgress:cb=>ipcRenderer.on('load-progress',(_,data)=>cb(data)),onEngineStatus:cb=>ipcRenderer.on('engine-status',(_,data)=>cb(data))
 });

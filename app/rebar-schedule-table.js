@@ -7,7 +7,7 @@
  const printScale=Number(t.printScale??50);if(t.layoutMode==='a4'&&(!Number.isFinite(printScale)||printScale<1||printScale>1000))throw Error('Échelle A4 incorrecte (1 à 1000).');
  const dimensions=t.sketchDimensions!==false,rows=Reinforcement.schedule(),h=t.textHeightCm*10/t.mmPerUnit,a4=t.layoutMode==='a4',paper=printScale/t.mmPerUnit;
  const stockPlan=window.MeshStock?.enabled()?MeshStock.plan():null,meshPlan=window.MeshStock?.plan();
- const live=new Set(Reinforcement.views().filter(v=>!v.deleted).map(v=>v.assemblyId)),owners=Object.values(Reinforcement.book().assemblies).filter(m=>live.has(m.id)),models=owners.flatMap(m=>m.linearSet?RebarLinearCore.parts(m):[m]);
+ const live=new Set(Reinforcement.views().filter(v=>!v.deleted).map(v=>v.assemblyId)),owners=Object.values(Reinforcement.book().assemblies).filter(m=>live.has(m.id)).flatMap(m=>C.meshLayers?C.meshLayers(m):[m]),models=owners.flatMap(m=>m.linearSet?RebarLinearCore.parts(m):[m]);
  const fmt=(n,d=2)=>Number(n.toFixed(d)).toLocaleString('fr-FR',{maximumFractionDigits:d}),massHA=rows.filter(r=>r.kind==='bar').reduce((n,r)=>n+r.mass,0),massTS=rows.filter(r=>r.kind==='mesh').reduce((n,r)=>n+r.mass,0),mass=massHA+massTS,length=rows.reduce((n,r)=>n+r.length*r.quantity/1000,0);
  const massTSLaid=stockPlan?stockPlan.laidMass:models.filter(m=>m.kind==='mesh').reduce((n,m)=>n+C.geometry(m).laidMass,0),massTSCut=stockPlan?stockPlan.discardMass:Math.max(0,massTS-massTSLaid);
  const pieces=new Map(),supplies=new Map();
