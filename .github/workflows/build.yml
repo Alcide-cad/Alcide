@@ -86,6 +86,11 @@ jobs:
           & $rcedit "build/runtime/ALCIDE.exe" --set-icon "app/app-icon.ico" --set-version-string ProductName ALCIDE --set-version-string FileDescription ALCIDE --set-file-version "${{ steps.ver.outputs.version }}" --set-product-version "${{ steps.ver.outputs.version }}"
           if ($LASTEXITCODE -ne 0) { throw "rcedit failed with exit code $LASTEXITCODE" }
 
+      - name: Seal runtime integrity manifest
+        run: |
+          $app = (Resolve-Path build/runtime/resources/app).Path
+          node -e "const fs = require('node:fs'); const path = require('node:path'); const app = process.argv[1]; const { version, buildId } = require(path.join(app, 'release-integrity150.cjs')).seal(app); fs.writeFileSync(path.resolve(app, '../../installed-release150.json'), JSON.stringify({ version, buildId }));" $app
+
       - name: Build installer (Inno Setup)
         run: |
           choco install innosetup -y --no-progress

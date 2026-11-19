@@ -42,7 +42,7 @@ def _ensure_layer(doc,name,source=None):
 def dimension_override(engine,doc,d):
     h=_num(d.get('height',2.5),'Hauteur de texte')
     if h<=0:raise ValueError('Hauteur de texte positive requise.')
-    o={'dimtxt':h,'dimasz':h*.6,'dimclrd':0,'dimclre':0,'dimclrt':0,'dimdec':int(d.get('precision',2)),'dimlfac':float(d.get('factor',1)),'dimrnd':float(d.get('rounding',0)),'dimzin':8 if d.get('trimZeros') else 0,'dimdsep':44 if d.get('decimalComma') else 46,'dimadec':int(d.get('anglePrecision',1)),'dimaunit':0}
+    o={'dimtxt':h,'dimasz':h*.6,'dimclrd':0,'dimclre':0,'dimclrt':0,'dimdec':int(d.get('precision',2)),'dimlfac':float(d.get('factor',1)),'dimrnd':float(d.get('rounding',0)),'dimzin':8 if d.get('trimZeros') else 0,'dimdsep':44 if d.get('decimalComma') else 46,'dimadec':int(d.get('anglePrecision',3 if d.get('angleUnit')=='rad' else 1)),'dimaunit':{'grad':2,'rad':3}.get(d.get('angleUnit'),0)}
     o['dimtih']=o['dimtoh']=int(bool(d.get('textHorizontal',False)))
     o['dimtfill']=1 if d.get('textBackground',True) else 0
     try:o.update(engine.dimension_part_style(doc,d))
@@ -76,8 +76,18 @@ def _angular_legs(l1,l2,w):
         if best:break
     if not best:return l1,l2
     a,b=best;R=max(math.hypot(w[0]-V[0],w[1]-V[1]),1e-6)
-    # Côtés limités au rayon de la cote : emprise compacte (pas de points de définition au bout des grandes lignes).
-    la=math.hypot(*a);lb=math.hypot(*b);a=(a[0]/la*min(la,R),a[1]/la*min(la,R));b=(b[0]/lb*min(lb,R),b[1]/lb*min(lb,R));la=math.hypot(*a);lb=math.hypot(*b)
+    # 1.0.97 : point de définition = point de la ligne réelle le plus proche du rayon de la cote (borné à ses extrémités) :
+    # la flèche reste sur la ligne, et une ligne d'attache n'apparaît que si l'arc dépasse le bout de la ligne.
+    def reach(d,seg):
+        n=math.hypot(*d);ux,uy=d[0]/n,d[1]/n;ts=[(p[0]-V[0])*ux+(p[1]-V[1])*uy for p in seg]
+        lo=max(0.0,min(ts));hi=max(ts)
+        if hi<=1e-9:return (ux*R,uy*R)
+        t=min(max(R,lo),hi);return (ux*max(t,1e-6),uy*max(t,1e-6))
+    segs=[[q[:2] for q in l1],[q[:2] for q in l2]]
+    def owner(d):
+        c1=abs(d[0]*u[1]-d[1]*u[0])<=1e-9*math.hypot(*d)*math.hypot(*u)
+        return segs[0] if c1 else segs[1]
+    a=reach(a,owner(a));b=reach(b,owner(b));la=math.hypot(*a);lb=math.hypot(*b)
     return [(V[0],V[1],0.0),(V[0]+a[0]/la*max(la,1e-6),V[1]+a[1]/la*max(la,1e-6),0.0)],[(V[0],V[1],0.0),(V[0]+b[0]/lb*max(lb,1e-6),V[1]+b[1]/lb*max(lb,1e-6),0.0)]
 
 def _add_dimension(engine,doc,spec):
@@ -92,6 +102,8 @@ def _add_dimension(engine,doc,spec):
         if kind=='radius':dim=msp.add_radius_dim(c,radius=r,location=loc,dimstyle='Standard',override=o,dxfattribs=attrs)
         else:dim=msp.add_diameter_dim(c,radius=r,location=loc,dimstyle='Standard',override=o,dxfattribs=attrs)
     elif kind=='angular':
+        if spec.get('textHorizontal', style.get('textHorizontal', False)):
+            attrs['text_rotation'] = 0.0
         if spec.get('center') is not None:
             c=_pt(spec['center']);base=_pt(spec.get('base') or spec['location'])
             l1,l2=_angular_legs([c,_pt(spec['p1'])],[c,_pt(spec['p2'])],base)
@@ -108,8 +120,24 @@ def _add_dimension(engine,doc,spec):
         dim=msp.add_arc_dim_cra(c,r,a0,a1,dist,location=loc,dimstyle='Standard',override=o,dxfattribs=attrs)
     else:raise ValueError('Type de cote inconnu.')
     if spec.get('textOverride') not in (None,''):dim.dimension.dxf.text=str(spec['textOverride'])[:250]
+    if kind=='angular':
+        place_angular_text_outside(dim, loc)
     dim.render()
     return dim.dimension
+
+def place_angular_text_outside(style, location):
+    """Keep the dimension arc fixed and put the full text box outside it."""
+    style['dimtmove'] = 2
+    if location is not None:
+        style.user_location_override(location)
+    renderer = style.get_renderer()
+    center = renderer.center_of_arc
+    text = renderer.text_box
+    normal = Vec2.from_angle((text.center - center).angle)
+    extent = max((text.center - corner).dot(normal) for corner in text.corners)
+    gap = max(renderer.measurement.text_gap, renderer.measurement.text_height * .18)
+    style.user_location_override(center + normal * (renderer.dim_line_radius + extent + gap))
+
 
 def _import_block(source,doc,name):
     if name in doc.blocks:return

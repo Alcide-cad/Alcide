@@ -7,11 +7,11 @@
  function fmt(v){const s=style();const x=v*(s.factor||1);return (Math.round(x*Math.pow(10,s.precision??1))/Math.pow(10,s.precision??1)).toString().replace('.',s.decimalComma?',':'.');}
  function curveAt(px){const e=pick(px);const cv=e&&C.curve(e);if(cv&&!isLocked(e))return {e,cv};const p=world(px),tol=8/view.s;let best=null,bd=tol;
   for(const x of query([p[0]-tol,p[1]-tol,p[0]+tol,p[1]+tol])){if(!visible(x)||isLocked(x))continue;const c=C.curve(x);if(!c)continue;const d=Math.abs(C.dist(p,c.center)-c.radius);if(d<=bd&&(c.full||C.onArc(c,C.ang(c.center,p)))){bd=d;best={e:x,cv:c};}}return best;}
- async function create(specs,msg){const before=snapshot();const full=specs.map(s=>({layer:dimLayer(),style:style(),...s}));const data=await C.engine({op:'make',specs:full},'Création de la cote…');const ids=C.addForeign(data,{meta:{kind:'dimension',specs:full}});selected=new Set(ids);commit(before);layersUI();status(msg+' · Ctrl+Z annule.');return ids;}
+ async function create(specs,msg){const before=snapshot();const full=specs.map(s=>({layer:dimLayer(),style:{...style(),...(s.kind==='angular'?{angleUnit:window.DimAssoc197?.angleUnit()||'deg'}:{})},...s}));const data=await C.engine({op:'make',specs:full},'Création de la cote…');const ids=C.addForeign(data,{meta:{kind:'dimension',specs:full}});selected=new Set(ids);commit(before);layersUI();status(msg+' · Ctrl+Z annule.');return ids;}
  // Rayon / diamètre
  function radial(kind){const title=kind==='radius'?'Cote de rayon':'Cote de diamètre';let target=null;
   C.start({name:kind==='radius'?'DIMRAYON':'DIMDIAMETRE',title,raw:false,prompt:()=>target?'placez le texte de la cote · Échap annule':'cliquez un cercle ou un arc',
-   onClick:async (p,ev,px)=>{if(!target){const t=curveAt(px);if(!t){status(title+' : cliquez sur un cercle ou un arc.');return;}target=t;return;}const cv=target.cv;C.stop();await create([{kind,center:cv.center,radius:cv.radius,location:p}],(kind==='radius'?'Cote de rayon R':'Cote de diamètre Ø')+fmt(kind==='radius'?cv.radius:cv.radius*2)+' créée');},
+   onClick:async (p,ev,px)=>{if(!target){const t=curveAt(px);if(!t){status(title+' : cliquez sur un cercle ou un arc.');return;}target=t;return;}const cv=target.cv;C.stop();await create([{kind,center:cv.center,radius:cv.radius,location:p,assoc:{ids:[target.e.id]}}],(kind==='radius'?'Cote de rayon R':'Cote de diamètre Ø')+fmt(kind==='radius'?cv.radius:cv.radius*2)+' créée');},
    draw:c=>{if(!target||!c)return;const cv=target.cv,a=C.ang(cv.center,c),rim=[cv.center[0]+cv.radius*Math.cos(a),cv.center[1]+cv.radius*Math.sin(a)];if(kind==='radius')C.line(cv.center,c,'#9ccf79',[]);else C.line([cv.center[0]-cv.radius*Math.cos(a),cv.center[1]-cv.radius*Math.sin(a)],c,'#9ccf79',[]);C.label((kind==='radius'?'R':'Ø')+fmt(kind==='radius'?cv.radius:cv.radius*2),c);void rim;}});}
  // Angulaire : deux lignes, ou sommet + deux points.
  function angular(){let l1=null,l2=null,pts=[];const title='Cote angulaire';
@@ -20,14 +20,14 @@
    onClick:async (p,ev,px)=>{
     if(!l1&&!pts.length){const t=lineAt(px);if(t){l1=t;return;}pts.push(p);return;}
     if(l1&&!l2){const t=lineAt(px);if(!t||t.e.id===l1.e.id&&t.s===l1.s){status(title+' : cliquez une seconde ligne différente.');return;}const u=C.sub(l1.s[1],l1.s[0]),v=C.sub(t.s[1],t.s[0]);if(Math.abs(u[0]*v[1]-u[1]*v[0])<1e-9*Math.hypot(...u)*Math.hypot(...v)){status(title+' : les deux lignes sont parallèles.');return;}l2=t;return;}
-    if(l1&&l2){C.stop();await create([{kind:'angular',line1:l1.s,line2:l2.s,location:p}],'Cote angulaire créée');return;}
+    if(l1&&l2){C.stop();const seg=t=>C.segments(t.e).findIndex(s=>C.dist(s[0],t.s[0])<1e-9&&C.dist(s[1],t.s[1])<1e-9);await create([{kind:'angular',line1:l1.s,line2:l2.s,base:p,location:p,textHorizontal:window.DimAssoc197?.textHorizontal()??false,assoc:{ids:[l1.e.id,l2.e.id],seg:[seg(l1),seg(l2)]}}],'Cote angulaire créée');return;}
     if(pts.length<3){pts.push(p);return;}
-    C.stop();await create([{kind:'angular',center:pts[0],p1:pts[1],p2:pts[2],location:p}],'Cote angulaire créée');},
+    C.stop();await create([{kind:'angular',center:pts[0],p1:pts[1],p2:pts[2],base:p,location:p,textHorizontal:window.DimAssoc197?.textHorizontal()??false}],'Cote angulaire créée');},
    draw:c=>{if(l1)C.line(...l1.s,'#9ccf79',[]);if(l2)C.line(...l2.s,'#9ccf79',[]);for(const q of pts.slice(1))C.line(pts[0],q,'#9ccf79',[4,3]);if(pts.length&&pts.length<3&&c)C.line(pts[0],c);if(c&&(l1&&l2||pts.length===3))C.label('Angle',c);}});}
  // Longueur d'arc
  function arcLength(){let target=null;const title='Cote de longueur d’arc';
   C.start({name:'DIMARC',title,prompt:()=>target?'placez la cote (distance à l’arc)':'cliquez un arc',
-   onClick:async (p,ev,px)=>{if(!target){const t=curveAt(px);if(!t||t.cv.full){status(title+' : cliquez sur un arc (pas un cercle complet).');return;}target=t;return;}const cv=target.cv,d=Math.max(cv.radius*.05,Math.abs(C.dist(p,cv.center)-cv.radius));C.stop();await create([{kind:'arc',center:cv.center,radius:cv.radius,start:cv.start*180/Math.PI,end:cv.end*180/Math.PI,distance:d,location:p}],'Cote de longueur d’arc créée');},
+   onClick:async (p,ev,px)=>{if(!target){const t=curveAt(px);if(!t||t.cv.full){status(title+' : cliquez sur un arc (pas un cercle complet).');return;}target=t;return;}const cv=target.cv,d=Math.max(cv.radius*.05,Math.abs(C.dist(p,cv.center)-cv.radius));C.stop();await create([{kind:'arc',center:cv.center,radius:cv.radius,start:cv.start*180/Math.PI,end:cv.end*180/Math.PI,distance:d,location:p,assoc:{ids:[target.e.id]}}],'Cote de longueur d’arc créée');},
    draw:c=>{if(!target||!c)return;const cv=target.cv;let span=cv.end-cv.start;while(span<0)span+=2*Math.PI;const r=Math.max(cv.radius*1.05,C.dist(c,cv.center));const q=screen(cv.center),rr=r*view.s;oc.save();oc.strokeStyle='#9ccf79';oc.lineWidth=1.5;oc.beginPath();const s0=screen([cv.center[0]+r*Math.cos(cv.start),cv.center[1]+r*Math.sin(cv.start)]);const a0=Math.atan2(s0[1]-q[1],s0[0]-q[0]),flip=screen([0,1])[1]<screen([0,0])[1];oc.arc(q[0],q[1],rr,a0,a0+(flip?-span:span),flip);oc.stroke();oc.restore();C.label('⌒ '+fmt(cv.radius*span),c);}});}
  // Ligne de base : origine commune, cotes empilées.
  function baseline(){let base=null,first=null,line=null,made=0,dir=null;const title='Cotes en ligne de base';
@@ -37,7 +37,9 @@
   C.start({name:'DIMBASE',title,prompt:()=>!base?'cliquez le point d’origine commun':!first?'cliquez le deuxième point':!line?'placez la première ligne de cote':'cliquez le point suivant · Entrée ou clic droit termine',
    onClick:async p=>{if(!base){base=p;return;}if(!first){if(C.dist(p,base)<1e-9)return;first=p;dir=Math.abs(p[0]-base[0])>=Math.abs(p[1]-base[1])?'h':'v';return;}
     if(!line){const r=(dir==='h'?0:90)*Math.PI/180,n=[-Math.sin(r),Math.cos(r)];const o=(p[0]-base[0])*n[0]+(p[1]-base[1])*n[1];line={offset:o,sign:o<0?-1:1};place(first);return;}
-    if(C.dist(p,base)<1e-9)return;place(p);},
+    const axis=dir==='h'?0:1;
+    if(Math.abs(p[axis]-base[axis])<1e-8){status(title+' : choisissez un point distinct suivant l’axe de cotation.');return;}
+    place(p);},
    onEnter:()=>C.stop(made?made+' cote(s) en ligne de base créée(s) · Ctrl+Z annule.':'Cotes en ligne de base annulées.'),
    draw:c=>{if(!base)return;C.line(base,c||base);if(first&&!line&&c){C.line(first,c);C.label('Position des cotes',c);}else if(line&&c){C.label('Cote '+(made+1)+' · '+fmt(dir==='h'?Math.abs(c[0]-base[0]):Math.abs(c[1]-base[1])),c);}}});}
  const B=C.button,ic={

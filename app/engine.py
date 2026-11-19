@@ -655,6 +655,12 @@ def metadata(e, layout, doc):
         style=e.override();scale=float(style.get('dimscale',1) or 1)
         post=style.get('dimpost','<>') or '<>'
         m['nativeDimension']={'height':float(style.get('dimtxt',2.5))*scale,'precision':int(style.get('dimadec',-1) if (d.dimtype&15) in (2,5) and style.get('dimadec',-1)>=0 else style.get('dimdec',2)),'rounding':float(style.get('dimrnd',0)),'factor':float(style.get('dimlfac',1)),'decimalComma':style.get('dimdsep',46)==44,'trimZeros':bool(int(style.get('dimzin',0))&8),'unit':post.split('<>')[-1].strip() if '<>' in post else 'u','showUnit':post!='<>','textHorizontal':bool(style.get('dimtih',0)),'textBackground':dimension_has_background(e,style),'kind':int(d.dimtype)&15,'editable':(int(d.dimtype)&15) in range(7) and abs(d.get('extrusion',(0,0,1))[0])<1e-8 and abs(d.get('extrusion',(0,0,1))[1])<1e-8}
+        if (int(d.dimtype)&15) in (2,5):
+            m['nativeDimension']['angleUnit']={0:'deg',1:'dms',2:'grad',3:'rad'}.get(int(style.get('dimaunit',0)),'deg')
+            if d.hasattr('text_midpoint'):
+                m['nativeDimension']['angularTextPoint']=point(d.text_midpoint)
+            rotation=d.get('text_rotation',None)
+            m['nativeDimension']['angularTextMode']='tangent' if rotation is None else 'horizontal' if abs(float(rotation)%360)<1e-8 else 'custom'
         if (int(d.dimtype)&15) in (0,1):
             a,b=point(d.defpoint2),point(d.defpoint3)
             m['nativeDimension']['line']={'a':a,'b':b,'basePoint':point(d.defpoint),'angle':float(d.get('angle',0)) if (int(d.dimtype)&15)==0 else math.degrees(math.atan2(b[1]-a[1],b[0]-a[0]))}
@@ -1302,10 +1308,22 @@ def apply_dimension_style(e,values):
         if e.dimtype in (2,5):raise ValueError('Les unités de longueur ne s’appliquent pas aux cotes angulaires.')
         if unit not in ('u','mm','cm','m','in','ft'):raise ValueError('Unité de cote inconnue.')
         patch['dimpost']='<>' if unit=='u' else '<> '+unit
+    if e.dimtype in (2,5):
+        if 'angleUnit' in values:
+            unit={'deg':0,'grad':2,'rad':3}.get(values['angleUnit'])
+            if unit is None:raise ValueError('Unité angulaire inconnue.')
+            patch['dimaunit']=unit
+            if 'precision' not in values:patch['dimadec']=3 if unit==3 else 1
+        if 'angularTextMode' in values:
+            mode=values['angularTextMode']
+            if mode=='horizontal':e.dxf.text_rotation=0.0
+            elif mode=='tangent':e.dxf.discard('text_rotation')
+            else:raise ValueError('Orientation du texte angulaire inconnue.')
+            patch['dimtih']=patch['dimtoh']=int(mode=='horizontal')
     if 'textHorizontal' in values:patch['dimtih']=patch['dimtoh']=int(bool(values['textHorizontal']))
     if 'textBackground' in values:patch['dimtfill']=1 if values['textBackground'] else 0
     mode=values.get('textOrientation')
-    if mode:
+    if mode and 'angularTextMode' not in values:
         angle=float(e.dxf.get('angle',0))
         if angle>90 or angle<-90:angle+=180
         e.dxf.text_rotation={'horizontal':0,'vertical':90,'reversed':angle+180,'aligned':angle}[mode]
@@ -1331,7 +1349,10 @@ def apply_dimension_style(e,values):
     if position is None and e.dxf.dimtype&128 and e.dxf.hasattr('text_midpoint'):position=point(e.dxf.text_midpoint)
     if position is not None:
         if len(position)!=2 or not all(math.isfinite(float(v)) for v in position):raise ValueError('Position du texte incorrecte.')
-        style.set_location(position,leader=True,relative=False)
+        if e.dimtype in (2,5) and 'textPosition' not in values:
+            style.user_location_override(position)
+        else:
+            style.set_location(position,leader=True,relative=False)
     style.render()
     # Copies retain the source block cache; display the newly generated block.
     e.virtual_block_content=None

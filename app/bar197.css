@@ -1,0 +1,65 @@
+/* 1.0.97 — zone du bas épurée (voir bar197.js). */
+html body #quickbar-bottom120#quickbar-bottom120.qz197{display:flex!important;align-items:center!important;gap:16px!important;height:46px!important;min-height:46px!important;max-height:46px!important;padding:0 12px!important;box-sizing:border-box!important;border-top:1px solid #34495a!important;background:var(--panel)!important;overflow:visible!important}
+html body #quickbar-bottom120#quickbar-bottom120.qz197>#command09{flex:1 1 auto!important;width:auto!important;max-width:none!important;min-width:0!important;display:flex!important;align-items:center!important;padding:0!important;margin:0!important;border:0!important;overflow:hidden!important;background:none!important;position:static!important}
+html body #quickbar-bottom120#quickbar-bottom120.qz197 #command09>div.qz197-desc{flex:1 1 auto!important;min-width:0!important;max-width:none!important;padding:0!important;display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:2!important;overflow:hidden!important;line-height:17px!important;max-height:34px!important}
+html body #quickbar-bottom120#quickbar-bottom120.qz197 #command09-name{display:inline!important;font-size:14px!important;font-weight:700!important;line-height:17px!important;color:#f2f7fb!important;white-space:nowrap!important;margin-right:8px!important}
+html body #quickbar-bottom120#quickbar-bottom120.qz197 #command09-name:not(:empty)::after{content:' —';font-weight:400;color:#8ea4b4}
+html body #quickbar-bottom120#quickbar-bottom120.qz197 #command09-hint,html body #quickbar-bottom120#quickbar-bottom120.qz197 #command09-steps{display:none!important}
+html body #quickbar-bottom120#quickbar-bottom120.qz197 #qz197-instr{display:inline!important;font-size:13px!important;line-height:17px!important;color:#dfe8ee!important;white-space:normal!important}
+html body #quickbar-bottom120#quickbar-bottom120.qz197>#quickbar-slot108{flex:0 0 0!important;width:0!important;min-width:0!important;height:0!important;overflow:visible!important}
+html body #quickbar-bottom120#quickbar-bottom120.qz197>#qz197-right{flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-left:auto}
+html body #quickbar-bottom120#quickbar-bottom120.qz197 #cmd196-wrap{position:static!important;transform:none!important;display:flex!important;align-items:center!important;gap:4px!important}
+html body #quickbar-bottom120#quickbar-bottom120.qz197 #cmd196{width:clamp(220px,18vw,340px)!important;height:28px!important;font-size:13px!important;box-sizing:border-box!important;border-radius:6px!important}
+#quickbar-toggle197{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;font-size:12.5px;white-space:nowrap;border-radius:6px}
+#quickbar-toggle197 svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+#quickbar-toggle197 kbd{font:11px/1 inherit;padding:2px 4px;border:1px solid #567080;border-radius:3px;color:#a9bccb}
+#quickbar-toggle197[aria-pressed=true]{border-color:#9fd17a;color:#c9eaa9;background:#2c4130}
+/* Barre d'état : sélecteur d'espace à gauche, commandes et indicateurs alignés à droite. */
+html body footer.qz197-footer{display:flex!important;align-items:center!important;justify-content:flex-end!important;flex-wrap:wrap!important;gap:4px 8px!important;height:auto!important;min-height:34px!important;max-height:none!important;padding:4px 12px!important;font-size:12px!important;box-sizing:border-box!important;overflow:visible!important}
+html body footer.qz197-footer>*{flex:0 0 auto}
+html body footer.qz197-footer>#layouts{margin-right:auto!important}
+html body footer.qz197-footer>#status{flex:1 1 0!important;min-width:0!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important}
+html body footer.qz197-footer.qz197-status-dup>#status{flex:0 0 0!important;width:0!important;padding:0!important;margin:0!important;visibility:hidden!important}
+html body footer.qz197-footer>:is(#drawing-save129,.lineweight-display,#measurement-scale-status,#global-step,#bottom-snap-control,#bottom-ortho197,#recovery09-status,#coords,#oda-chip194,#perf){padding-left:8px!important;border-left:1px solid #33475a!important}
+html body footer.qz197-footer>#coords{font-variant-numeric:tabular-nums;min-width:118px;text-align:right}
+html body footer.qz197-footer>#recovery09-status{font-size:11px!important;color:#9fb3c2}
+#bottom-ortho197{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:11px;flex:none;padding:2px 7px;border:1px solid #405762;border-radius:5px}
+#bottom-ortho197-toggle{appearance:none;width:28px;height:16px;border:1px solid #6b7e89;border-radius:10px;background:#3d4d57;position:relative;margin:0;cursor:pointer}
+#bottom-ortho197-toggle:before{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#dae5ea}
+#bottom-ortho197-toggle:checked{background:#719a50;border-color:#b4da90}#bottom-ortho197-toggle:checked:before{left:14px;background:#172630}
+@media (max-width:1400px){html body footer.qz197-footer{gap:4px 5px!important;padding:4px 8px!important}html body footer.qz197-footer>#coords{min-width:92px}html body footer.qz197-footer>:is(#drawing-save129,.lineweight-display,#measurement-scale-status,#global-step,#bottom-snap-control,#bottom-ortho197,#recovery09-status,#coords,#oda-chip194,#perf){padding-left:5px!important}}
+/* Fenêtre flottante de la barre rapide : redimensionnable, les outils se répartissent en ligne (large) ou en colonnes (étroite et haute). */
+#quickbar-window108[data-floating=true] #toolquickbar{display:flex!important;flex-wrap:wrap!important;align-content:flex-start!important;overflow:auto!important}
+#quickbar-window108[data-floating=true] #toolquickbar>*{max-width:100%}
+#quickbar-window108[data-floating=true] #toolquickbar>span,#quickbar-window108[data-floating=true] #toolquickbar>label{flex-wrap:wrap!important;min-width:0}
+#quickbar-window108[data-floating=true] #toolquickbar span:not(:has(button,input,select)),#palette-content #toolquickbar span:not(:has(button,input,select)){white-space:normal!important;overflow-wrap:anywhere!important;max-width:100%!important;min-width:0!important}
+#quickbar-window108[data-floating=true] #toolquickbar #gesture-actions,#palette-content #toolquickbar #gesture-actions{flex-wrap:wrap!important;max-width:100%!important;min-width:0!important}
+#qz197-right .bottom-fold{display:flex;align-items:center}#qz197-right #help-permanent{height:28px;min-width:28px}
+
+/* Garder chaque réglage et ses flèches ensemble dans les deux fenêtres. */
+:is(#quickbar-window108,#palette-content) #toolquickbar {
+  gap: 4px 6px !important;
+  padding: 5px 7px;
+}
+:is(#quickbar-window108,#palette-content) #toolquickbar label {
+  min-width: 0;
+  max-width: 100%;
+  column-gap: 5px;
+}
+:is(#quickbar-window108,#palette-content) #toolquickbar label > .numeric-stepper {
+  flex: 0 1 86px;
+  min-width: min(76px, 100%);
+  width: 86px;
+}
+:is(#quickbar-window108,#palette-content) #toolquickbar .numeric-stepper-buttons {
+  flex: 0 0 21px;
+}
+:is(#quickbar-window108,#palette-content) #toolquickbar .numeric-stepper-buttons > button {
+  min-height: 0 !important;
+  min-width: 0 !important;
+  padding: 0 3px !important;
+}
+:is(#quickbar-window108,#palette-content) #toolquickbar label > select {
+  min-width: 0;
+  max-width: 100%;
+}
