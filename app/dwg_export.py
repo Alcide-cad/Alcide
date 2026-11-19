@@ -21,22 +21,93 @@ def declare_missing_layers(doc):
     except Exception:pass
     return added
 
-def converter():
+ODA_MISSING='[ODA_MISSING] '
+ODA_PAGE='https://www.opendesign.com/guestfiles/oda_file_converter'
+
+def _registry_locations():
+    """InstallLocation of ODA File Converter from the Windows uninstall keys (machine and user)."""
+    found=[]
+    if os.name!='nt':return found
+    try:import winreg
+    except Exception:return found
+    hives=[(winreg.HKEY_LOCAL_MACHINE,r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'),
+           (winreg.HKEY_LOCAL_MACHINE,r'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'),
+           (winreg.HKEY_CURRENT_USER,r'Software\Microsoft\Windows\CurrentVersion\Uninstall')]
+    for hive,key in hives:
+        try:root=winreg.OpenKey(hive,key)
+        except OSError:continue
+        try:
+            for i in range(winreg.QueryInfoKey(root)[0]):
+                try:
+                    sub=winreg.OpenKey(root,winreg.EnumKey(root,i))
+                    name=str(winreg.QueryValueEx(sub,'DisplayName')[0])
+                    if 'odafileconverter' not in name.lower().replace(' ',''):continue
+                    for value in ('InstallLocation','InstallSource'):
+                        try:
+                            loc=str(winreg.QueryValueEx(sub,value)[0]).strip().strip('"')
+                            if loc:found.append(Path(loc)/'ODAFileConverter.exe')
+                        except OSError:pass
+                except OSError:continue
+        finally:winreg.CloseKey(root)
+    try:
+        sub=winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,r'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\ODAFileConverter.exe')
+        found.append(Path(str(winreg.QueryValueEx(sub,'')[0]).strip('"')))
+    except OSError:pass
+    return found
+
+def _version_key(p):
+    import re
+    nums=[int(n) for n in re.findall(r'\d+',p.parent.name)]
+    return nums or [0]
+
+def candidates():
+    """Every standard ODA File Converter location, newest version first within each place."""
     paths=[]
     if os.environ.get('ALCIDE_ODA_EXE'):paths.append(Path(os.environ['ALCIDE_ODA_EXE']))
-    roots=[Path(os.environ.get('LOCALAPPDATA',''))]
-    if os.environ.get('USERPROFILE'):roots.append(Path(os.environ['USERPROFILE'])/'AppData'/'Local')
-    roots.append(Path.home()/'AppData'/'Local')
+    roots=[]
+    for value in (os.environ.get('LOCALAPPDATA'),os.environ.get('USERPROFILE') and str(Path(os.environ['USERPROFILE'])/'AppData'/'Local'),str(Path.home()/'AppData'/'Local')):
+        if value and Path(value) not in roots:roots.append(Path(value))
+    def versioned(folder,pattern):
+        try:return sorted(folder.glob(pattern),key=_version_key,reverse=True)
+        except OSError:return []
     for root in roots:
-        local=root/'DWG-Alcide'/'Tools'
-        paths.extend(sorted(local.glob('ODAFileConverter-*/ODAFileConverter.exe'),reverse=True))
-    for key in ('PROGRAMFILES','PROGRAMFILES(X86)'):
-        if os.environ.get(key):paths.extend(Path(os.environ[key]).glob('ODA/ODAFileConverter*/ODAFileConverter.exe'))
-    found=shutil.which('ODAFileConverter.exe')
+        # Installed by ALCIDE (one click, per user, no administrator rights).
+        paths.extend(versioned(root/'DWG-Alcide'/'Tools','ODAFileConverter*/ODAFileConverter.exe'))
+        # Per-user installs of the official MSI.
+        for base in (root/'Programs'/'ODA',root/'Programs',root/'ODA'):
+            paths.extend(versioned(base,'ODAFileConverter*/ODAFileConverter.exe'))
+            paths.extend(versioned(base,'*/ODAFileConverter.exe'))
+    program_files=[]
+    for key in ('PROGRAMFILES','PROGRAMW6432','PROGRAMFILES(X86)'):
+        if os.environ.get(key) and Path(os.environ[key]) not in program_files:program_files.append(Path(os.environ[key]))
+    if os.name=='nt':
+        for fixed in (Path('C:/Program Files'),Path('C:/Program Files (x86)')):
+            if fixed not in program_files:program_files.append(fixed)
+    for base in program_files:
+        # Official MSI: Program Files\ODA\ODAFileConverter 27.10.0 (older: ODAFileConverter_title 21.x, ODAFileConverter).
+        paths.extend(versioned(base/'ODA','ODAFileConverter*/ODAFileConverter.exe'))
+        paths.extend(versioned(base/'ODA','*/ODAFileConverter.exe'))
+        paths.extend(versioned(base,'ODAFileConverter*/ODAFileConverter.exe'))
+    paths.extend(_registry_locations())
+    found=shutil.which('ODAFileConverter.exe') or shutil.which('ODAFileConverter')
     if found:paths.append(Path(found))
-    for p in paths:
-        if p.is_file():return p.resolve()
-    raise ValueError('Export DWG : installez ODA File Converter depuis opendesign.com/guestfiles/oda_file_converter. L’export DXF reste disponible.')
+    return paths
+
+def find_converter():
+    for p in candidates():
+        try:
+            if p.is_file():return p.resolve()
+        except OSError:continue
+    return None
+
+def status():
+    exe=find_converter()
+    return dict(found=bool(exe),path=str(exe) if exe else None,page=ODA_PAGE)
+
+def converter():
+    exe=find_converter()
+    if exe:return exe
+    raise ValueError(ODA_MISSING+'Enregistrement DWG : ODA File Converter (gratuit) n’est pas installé. ALCIDE peut l’installer en un clic, ou enregistrer en DXF.')
 
 def convert(source, target, kind, assets=()):
     exe=converter()

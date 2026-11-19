@@ -15,7 +15,7 @@ function frenchMessage(text){return String(text).replace(/\b(?:LWPOLYLINE|POLYLI
 const mm={mm:1,cm:10,m:1000,in:25.4,ft:304.8};
 function log(t){logLines.push(t);if(logLines.length>80)logLines.shift();$('#log').textContent=logLines.join('\n');$('#log').scrollTop=$('#log').scrollHeight;}
 function status(t){$('#status').textContent=t;}
-function error(e){log('Erreur : '+e.message);status(e.message);}
+function error(e){const m=String(e?.message??e).replace(/^Error invoking remote method '[^']+': (?:[A-Za-z]*Error: )?/,'').replace(/^\[ODA_MISSING\] /,'');log('Erreur : '+m);status(m);}
 function busyState(v,text='Ouverture du dessin…',soft=false){busy=v;$('#busy').hidden=!v;$('#busy').classList.toggle('soft',soft);$('#busytext').textContent=text;if(!v)$('#preview').hidden=true;for(const id of ['open','export','project','saveas','lisp','layouts','cache'])$('#'+id).disabled=v;refresh();syncLayerControls();}
 function world(p){const {c,s}=viewBasis(),x=(p[0]-view.tx)/view.s,y=(p[1]-view.ty)/view.s;return [c*x+s*y,s*x-c*y];}
 function viewBasis(){const r=(view.angle||0)*Math.PI/180;return {c:Math.cos(r),s:Math.sin(r)};}
@@ -163,6 +163,7 @@ function drawingSaveSnapshot(saveAs,tab){
 }
 async function saveDrawing(saveAs=false,dxf=false,queued=null){
  if(!scene||busy&&!queued)return null;
+ if(!dxf&&!queued&&!drawingSaveInFlight&&window.OdaSetup194){const choice=await window.OdaSetup194.ensure();if(choice==='dxf')return saveDrawing(true,true);if(choice!=='ok'){closeAfterDrawingSave=false;status('Enregistrement DWG annulé.');return null;}if(!scene)return null;}
  const startedSave=performance.now(),doc=activeId,tab=tabs.find(t=>t.id===doc),token=queued?.token??saveToken;
  if(drawingSaveInFlight){
   if(!saveAs&&!dxf&&token!==drawingSaveToken&&token!==queuedDrawingSave?.token){
@@ -177,7 +178,7 @@ async function saveDrawing(saveAs=false,dxf=false,queued=null){
   if(activeId!==doc)throw Error('Le dessin actif a changé pendant l’enregistrement.');
   if(!dxf&&!result.recovery){tab.savedDwgToken=token;tab.lastDwgSavedAt129=Date.now();tab.drawingPath=result.path;tab.inputPath=result.path;tab.source=result.sourceBase;projectPath=null;scene.source=result.path;for(const value of layoutScenes.values())value.source=result.path;$('#filename').textContent=result.path.split(/[\\/]/).pop();if(token===saveToken)dirty=false;api.rememberRecent?.(result.path).catch(()=>{});}
   window.lastSaveMetrics122={seconds:(performance.now()-startedSave)/1000,phases:result.timings||null,host:result.hostTimings||null};log((dxf?'DXF exporté : ':'DWG enregistré : ')+result.path+' · '+window.lastSaveMetrics122.seconds.toFixed(1)+' s');status(result.recovery?'Destination inaccessible · copie de secours : '+result.path:dxf?'DXF exporté et vérifié.':'DWG enregistré et vérifié.');refresh();canClose=!result.recovery;return result;
- }catch(e){window.lastSaveFailure143={doc,message:e.message||String(e)};error(e);return null;}finally{
+ }catch(e){window.lastSaveFailure143={doc,message:e.message||String(e)};if(!dxf&&/\[ODA_MISSING\]/.test(e.message||'')&&window.OdaSetup194){window.lastSaveFailure143=null;status('Enregistrement DWG : ODA File Converter nécessaire.');setTimeout(()=>window.OdaSetup194.ensure().then(c=>{if(c==='ok')saveDrawing(saveAs);else if(c==='dxf')saveDrawing(true,true);}),0);return null;}error(e);return null;}finally{
   const next=canClose?queuedDrawingSave:null;
   queuedDrawingSave=null;drawingSaveInFlight=false;drawingSaveToken=null;
   window.SaveProgress124?.finish();captureTab();

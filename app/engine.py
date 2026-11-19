@@ -552,6 +552,11 @@ def metadata(e, layout, doc):
         try:m['arrows']=json.loads(''.join(t.value for t in e.get_xdata('ALCIDE_ARROWS') if t.code==1000))
         except (ValueError,TypeError):pass
     if e.has_xdata('ALCIDE_ARROW'):m['arrowHead']=True
+    if e.has_xdata('ALCIDE_PENCIL'):
+        try:
+            data=json.loads(''.join(t.value for t in e.get_xdata('ALCIDE_PENCIL') if t.code==1000))
+            if isinstance(data.get('raw'),list) and len(data['raw'])>1:m['pencil195']={'s':int(data.get('s',50)),'raw':data['raw']}
+        except (ValueError,TypeError):pass
     if e.dxftype()=='IMAGE':
         try:
             ins=e.dxf.insert;u=e.dxf.u_pixel;v=e.dxf.v_pixel;w,h=e.dxf.image_size.x,e.dxf.image_size.y
@@ -1670,6 +1675,15 @@ def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforceme
             result['timings']['engineTransaction']=round(time.perf_counter()-started,4)
 
 
+_SELECTION_TEXT196={}
+def export_selection_doc(changes,dimensions,edits,layer_changes,selection):
+    # Même transaction que l'export (modifications appliquées) mais le document reste en mémoire.
+    enabled=gc.isenabled()
+    if enabled:gc.disable()
+    try:return _export_verified('selection-196.dxf',changes,dimensions,edits,layer_changes,None,False,selection,None,in_memory=True)
+    finally:
+        if enabled:gc.enable()
+
 def seed_verified_conversion145(path,converted):
     # Only the reopened and fingerprint-verified DXF may seed the next open.
     # No global drawing state is changed and cache failure cannot fail a save.
@@ -1684,7 +1698,7 @@ def seed_verified_conversion145(path,converted):
         Path(temporary).unlink(missing_ok=True)
     return True
 
-def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None):
+def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None,in_memory=False):
     # Work on a fresh copy; never mutate the source or the active document.
     from io import StringIO
     prepared=time.perf_counter()
@@ -1697,9 +1711,14 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         progress('Préparation de la base du DWG…')
         out=dwg_export.source_document(SOURCE)
     else:
-        require_doc(full=True);auditor=DOC.audit()
-        if auditor.has_errors:raise ValueError('Le DXF source présente des erreurs de structure non réparables.')
-        s=StringIO();DOC.write(s);s.seek(0);out=ezdxf.read(s)
+        require_doc(full=True)
+        cached=_SELECTION_TEXT196.get('text') if in_memory and _SELECTION_TEXT196.get('doc') is DOC else None
+        if cached is None:
+            auditor=DOC.audit()
+            if auditor.has_errors:raise ValueError('Le DXF source présente des erreurs de structure non réparables.')
+            s=StringIO();DOC.write(s);cached=s.getvalue()
+            if in_memory:_SELECTION_TEXT196.update(doc=DOC,text=cached)  # 1.0.96 : extractions suivantes (blocs) sans réécriture.
+        out=ezdxf.read(StringIO(cached))
     preparation_seconds=time.perf_counter()-prepared;applied=time.perf_counter()
     if 'ALCIDE_COTES' not in out.layers:out.layers.new('ALCIDE_COTES',dxfattribs={'color':3})
     if 'ALCIDE_TEXTES' not in out.layers:out.layers.new('ALCIDE_TEXTES',dxfattribs={'color':3})
@@ -1844,6 +1863,9 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
             if len(pts)!=3:raise ValueError('Arc : centre et deux extrémités requis.')
             center,start,end=pts
             e=layout.add_arc(center,math.dist(center,start),math.degrees(math.atan2(start[1]-center[1],start[0]-center[0])),math.degrees(math.atan2(end[1]-center[1],end[0]-center[0])),dxfattribs=attrs)
+        elif drawing['type']=='SPLINE':
+            import spline_export194
+            e=spline_export194.add_spline(layout,drawing,pts,attrs)
         else:raise ValueError('Objet créé non pris en charge.')
         # 1.0.87 : ALCIDE trace le motif en continu le long des polylignes ; PLINEGEN garde le même rendu dans AutoCAD.
         if e.dxftype()=='LWPOLYLINE':e.dxf.flags=e.dxf.get('flags',0)|128
@@ -2163,6 +2185,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         for layout in out.layouts:
             for e in list(layout):
                 if e.dxf.handle not in keep:layout.delete_entity(e)
+    if in_memory:return out  # 1.0.96 : extraction de sélection (blocs) sans écriture/relecture disque.
     path=Path(filename)
     if path.suffix.lower()=='.dwg':
         for layer in final_locks:layer.lock()
@@ -2242,12 +2265,13 @@ def dispatch(r):
             if old is None:DOCUMENTS.pop(doc_id,None)
             else:DOCUMENTS[doc_id]=old
             raise
+    if cmd=='oda-status':return dwg_export.status()
     if cmd=='cache-info':return cache_info()
     if cmd=='fonts':return font_choices()
     if cmd=='clear-cache':return clear_cache()
     if cmd=='close':
         doc_id=r['docId']
-        DOCUMENTS.pop(doc_id,None)
+        DOCUMENTS.pop(doc_id,None);_SELECTION_TEXT196.clear()
         if ACTIVE==doc_id:DOC,SOURCE,WARNINGS,ACTIVE=None,None,[],None
         if not DOCUMENTS:dwg_export.release_source_cache()
         return True
@@ -2298,6 +2322,9 @@ def dispatch(r):
     if cmd=='clipboard-copy131':
         import clipboard131
         return clipboard131.capture(sys.modules[__name__],r)
+    if cmd=='cad196':
+        import cad196
+        return cad196.run(sys.modules[__name__],r)
     if cmd=='export':return export(r['path'],r.get('changes',{}),r.get('dimensions',[]),r.get('edits',{}),r.get('layerChanges',{}),r.get('reinforcement',[]),backup=bool(r.get('backup',False)),expected_target_hash=r.get('expectedTargetHash'))
     raise ValueError('Commande inconnue : '+cmd)
 

@@ -36,7 +36,7 @@ def import_edits(out,edits,copies):
         text=edits.get(data_id,{}).get('clipboardData131')
         if not isinstance(text,str) or len(text)>40000000:raise ValueError('Contenu du presse-papiers manquant.')
         src=ezdxf.read(StringIO(text));dwg_export.declare_missing_layers(src);original=list(src.modelspace());layout=out.modelspace();before=set(e.dxf.handle for e in layout)
-        loader=xref.Loader(src,out,conflict_policy=xref.ConflictPolicy.NUM_PREFIX);loader.load_modelspace();loader.execute()
+        loader=xref.Loader(src,out,conflict_policy=xref.ConflictPolicy.KEEP if edits.get(data_id,{}).get('clipboardKeep196') else xref.ConflictPolicy.NUM_PREFIX);loader.load_modelspace();loader.execute()
         imported=[e for e in layout if e.dxf.handle not in before]
         if len(imported)!=len(original):raise ValueError('Import incomplet : le dessin ne sera pas enregistré.')
         mapping={e.dxf.handle:n for e,n in zip(original,imported)};used=set()

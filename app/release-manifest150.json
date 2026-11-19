@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.93",
+  "version": "1.0.96",
   "buildId": "ff819eb5db61b60246145262c4ed9d5a68d81f827c00dbec6867970dac7ba2c7",
   "files": {
     "action-flow.js": "25d0804e26059987f7fa8cbef4411549b45897908dc35e621d197fcbf0d76d8a",

@@ -120,10 +120,32 @@ ipcMain.handle('open-drawing',async(_,p,docId)=>{p=validateFile(p,['.dwg','.dxf'
 ipcMain.handle('layout',async(_,layout,docId)=>readScene(await request({cmd:'layout',layout,docId})));
 ipcMain.handle('close-drawing',async(_,docId)=>{const result=await request({cmd:'close',docId});baselineLifecycle.release(sources.get(docId));sources.delete(docId);frozenSaveSources.delete(docId);savedDrawingStats122.delete(docId);drawingDiskVersions.delete(docId);return result;});
 ipcMain.handle('dimension-preview',async(_,docId,requests)=>{const result=await request({cmd:'dimension-preview',docId,requests});return {dimensionGzip:zlib.gzipSync(JSON.stringify(result),{level:1}).toString('base64')};});
+ipcMain.handle('cad196',(event,docId,payload)=>{if(event.sender!==win?.webContents)throw Error('Fenêtre non autorisée.');return request({...(payload||{}),cmd:'cad196',docId});});
+ipcMain.handle('cad196-save-dialog',async(_,data)=>{const dxf=data?.format==='dxf';const r=await dialog.showSaveDialog(win,{title:data?.title||'Écrire le bloc dans un fichier (WBLOC)',buttonLabel:'Enregistrer',defaultPath:path.join(lastDialogFolder()||app.getPath('desktop'),(String(data?.name||'Bloc').replace(/[<>:"/\\|?*]/g,'_')||'Bloc')+(dxf?'.dxf':'.dwg')),filters:[{name:'Dessin DWG 2018',extensions:['dwg']},{name:'Dessin DXF',extensions:['dxf']}]});return r.canceled?null:r.filePath;});
 ipcMain.handle('hatch-preview',(_,docId,requests)=>request({cmd:'hatch-preview',docId,requests}));
 ipcMain.handle('text-preview',(_,docId,requests)=>request({cmd:'text-preview',docId,requests}));
 ipcMain.handle('fonts',()=>request({cmd:'fonts'}));
 ipcMain.handle('cache-info',()=>request({cmd:'cache-info'}));
+// 1.0.94 · ODA File Converter : détection à chaque demande, page officielle, installation en un clic.
+const odaSetup194=require('./oda-installer194.cjs');let odaInstalling194=null;
+ipcMain.handle('oda-status194',()=>request({cmd:'oda-status'}));
+ipcMain.handle('oda-open-page194',()=>shell.openExternal(odaSetup194.PAGE));
+ipcMain.handle('oda-install194',async event=>{
+ if(odaInstalling194)return odaInstalling194;
+ const sender=event.sender,send=p=>{try{if(!sender.isDestroyed())sender.send('oda-install-progress194',p);}catch{}};
+ odaInstalling194=(async()=>{
+  const before=await request({cmd:'oda-status'});if(before?.found)return {...before,already:true};
+  const {net}=require('electron');
+  const done=await odaSetup194.install({localAppData:process.env.LOCALAPPDATA||path.join(app.getPath('home'),'AppData','Local'),tempDir:app.getPath('temp'),onProgress:send,fetchImpl:(u,o)=>net.fetch(u,o)});
+  send({phase:'check'});
+  const after=await request({cmd:'oda-status'});
+  if(!after?.found)throw Error('ODA File Converter reste introuvable après l’installation.');
+  const test=await odaSetup194.selfTest(after.path);
+  if(!test.ok)throw Error('ODA File Converter est installé mais ne convertit pas (code '+test.code+').');
+  return {...after,method:done.method,version:done.version,selfTest:true};
+ })();
+ try{return await odaInstalling194;}finally{odaInstalling194=null;}
+});
 ipcMain.handle('clear-cache',()=>request({cmd:'clear-cache'}));
 ipcMain.handle('read-lisp',(_,p)=>fs.readFileSync(validateFile(p,['.lsp']),'utf8'));
 ipcMain.handle('choose-lisp',async()=>{const r=await dialog.showOpenDialog(win,{title:'Charger un fichier AutoLISP',buttonLabel:'Charger',filters:[{name:'AutoLISP',extensions:['lsp']}],properties:['openFile']});return r.canceled?null:r.filePaths[0];});
