@@ -109,6 +109,56 @@ def converter():
     if exe:return exe
     raise ValueError(ODA_MISSING+'Enregistrement DWG : ODA File Converter (gratuit) n’est pas installé. ALCIDE peut l’installer en un clic, ou enregistrer en DXF.')
 
+# ODA omits these native DIMSTYLE defaults in its ACAD2018 ASCII DXF.
+# ezdxf uses metric defaults for absent fields. Explicit values take precedence.
+_ODA_STYLE_DEFAULTS = {
+    41: 0.18, 42: 0.0625, 43: 0.38, 44: 0.18, 49: 1.0,
+    73: 1, 74: 1, 77: 0, 78: 0, 79: 0, 140: 0.18, 141: 0.09,
+    143: 25.4, 147: 0.09, 179: 0, 271: 4, 272: 4, 278: 46, 284: 0,
+}
+
+def _copy_oda_dxf(source, target):
+    """Expand omitted style fields only in ODA's intermediate representation."""
+    with source.open('rb') as incoming, target.open('wb') as outgoing:
+        record = None
+        in_table = False
+        table_header = False
+        while True:
+            code = incoming.readline()
+            if not code:
+                break
+            value = incoming.readline()
+            if not value:
+                raise ValueError('DXF intermédiaire incomplet.')
+            group = int(code)
+            tag = value.strip()
+            if group == 0:
+                if record is not None:
+                    fields = {int(c) for c, _ in record}
+                    for c, v in record:
+                        outgoing.write(c + v)
+                        if int(c) == 100 and v.strip() == b'AcDbDimStyleTableRecord':
+                            for k, default in _ODA_STYLE_DEFAULTS.items():
+                                if k not in fields:
+                                    outgoing.write(f'{k}\r\n{default}\r\n'.encode('ascii'))
+                    record = None
+                if in_table and tag == b'ENDTAB':
+                    outgoing.write(code + value)
+                    shutil.copyfileobj(incoming, outgoing, 1024 * 1024)
+                    return
+                if in_table and tag == b'DIMSTYLE':
+                    record = []
+                table_header = tag == b'TABLE'
+            elif group == 2 and table_header:
+                in_table = tag == b'DIMSTYLE'
+                table_header = False
+            if record is None:
+                outgoing.write(code + value)
+            else:
+                record.append((code, value))
+        if record is not None:
+            raise ValueError('Table des styles de cote incomplète.')
+
 def convert(source, target, kind, assets=()):
     exe=converter()
     with tempfile.TemporaryDirectory(prefix='alcide-oda-') as folder:
@@ -124,6 +174,10 @@ def convert(source, target, kind, assets=()):
         result=subprocess.run([str(exe),str(src),str(dst),'ACAD2018',kind,'0','1',name],capture_output=True,timeout=180,**kw)
         output=dst/('drawing.'+kind.lower())
         if result.returncode or not output.is_file():raise ValueError('La conversion ODA a échoué ; aucun fichier final n’a été remplacé.')
+        if kind == 'DXF' and Path(source).suffix.lower() == '.dwg':
+            expanded = root/'drawing-with-style-defaults.dxf'
+            _copy_oda_dxf(output, expanded)
+            output = expanded
         shutil.copy2(output,target)
 
 # Reuse the immutable source conversion within one engine session. Every save
@@ -270,6 +324,12 @@ def fingerprint(doc):
         for key,default in supported_defaults[typ]:data[key]=value(e.dxf.get(key,default))
         for key in ('angle','rotation','text_rotation'):
             if key in data:data[key]=float(data[key])%360
+        if typ=='ARC':
+            from ezdxf.math import arc_angle_span_deg
+            start,end=e.dxf.start_angle,e.dxf.end_angle
+            direction=math.radians(start%360)
+            data['start_direction']=[math.cos(direction),math.sin(direction)]
+            data['sweep_degrees']=arc_angle_span_deg(start,end)
         if e.dxftype()=='INSERT':
             for key in ('xscale','yscale','zscale'):data[key]=e.dxf.get(key,1)
         if 'linetype' in data:data['linetype']=data['linetype'].casefold()

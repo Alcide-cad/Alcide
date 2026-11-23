@@ -37,7 +37,7 @@ SOURCE = None
 WARNINGS = []
 DOCUMENTS = {}
 ACTIVE = None
-CACHE_VERSION = 'alcide-native-snaps189'
+CACHE_VERSION = 'alcide-dwg-dimstyles118'
 
 SCANNED_FONT_DIRS=set()
 
@@ -659,8 +659,15 @@ def metadata(e, layout, doc):
             m['nativeDimension']['angleUnit']={0:'deg',1:'dms',2:'grad',3:'rad'}.get(int(style.get('dimaunit',0)),'deg')
             if d.hasattr('text_midpoint'):
                 m['nativeDimension']['angularTextPoint']=point(d.text_midpoint)
+            if (int(d.dimtype)&15)==5 and d.get('extrusion',(0,0,1))[2]>0:
+                m['nativeDimension']['angularArc']=[point(d.defpoint4),point(d.defpoint2),point(d.defpoint3),point(d.defpoint)]
+            elif m['nativeDimension']['editable']:
+                arc, label, _ = imported_angular_geometry(e)
+                if arc is not None:
+                    m['nativeDimension']['angularArc'] = arc
+                    m['nativeDimension']['angularTextPoint'] = point(label.dxf.insert)
             rotation=d.get('text_rotation',None)
-            m['nativeDimension']['angularTextMode']='tangent' if rotation is None else 'horizontal' if abs(float(rotation)%360)<1e-8 else 'custom'
+            m['nativeDimension']['angularTextMode']='horizontal' if (rotation is None and style.get('dimtih',0)) or (rotation is not None and abs(float(rotation)%360)<1e-8) else 'tangent' if rotation is None else 'custom'
         if (int(d.dimtype)&15) in (0,1):
             a,b=point(d.defpoint2),point(d.defpoint3)
             m['nativeDimension']['line']={'a':a,'b':b,'basePoint':point(d.defpoint),'angle':float(d.get('angle',0)) if (int(d.dimtype)&15)==0 else math.degrees(math.atan2(b[1]-a[1],b[0]-a[0]))}
@@ -1181,7 +1188,17 @@ def scene(layout_name='Model'):
         x=-float(layout.dxf.get('left_margin',0))-float(layout.dxf.get('plot_origin_x_offset',0))
         y=-float(layout.dxf.get('bottom_margin',0))-float(layout.dxf.get('plot_origin_y_offset',0))
         if width>0 and height>0:paper=dict(bounds=[x/units,y/units,(x+width)/units,(y+height)/units],widthMM=width,heightMM=height)
-    return dict(paper=paper,linetypeGlobalScale=float(DOC.header.get('$LTSCALE',1)),sceneTimings=timings,renderStats=dict(blockCacheHits=frontend.block_cache_hits,blockCacheMisses=frontend.block_cache_misses,blockCachePoints=frontend.block_cache_points,textCachePoints=frontend.text_cache_points,textCacheHits=frontend.text_cache_hits),fontResolution={name:font.filename for name,font in ctx.fonts.items()},linetypes={lt.dxf.name:[max(abs(v)*float(DOC.header.get('$LTSCALE',1)),1e-8) for v in line_patterns.render_pattern(lt)] for lt in DOC.linetypes},measurementScale=document_scale.read(DOC),layerInfo=layer_info(),nativeLines=native_lines,nativeStyles=native_styles,drawOrder=draw_order if native_lines else [],items=items,catalog=[m for handle,m in metas.items() if handle not in backend.items],bounds=b,requiresLocalRendering=any(abs(v)>100000 for v in b),layouts=DOC.layout_names(),layout=layout_name,source=SOURCE,
+    viewports = []
+    if layout_name != 'Model':
+        from ezdxf import units as dxf_units
+        for vp in layout.query('VIEWPORT'):
+            if vp.dxf.id<=1 or vp.dxf.status<=0 or vp.dxf.height<=0:
+                continue
+            if vp.dxf.view_direction_vector != (0,0,1) or abs(vp.dxf.view_twist_angle)>1e-8 or vp.dxf.view_target_point != (0,0,0):
+                continue
+            viewports.append(dict(handle=vp.dxf.handle, ratio=vp.dxf.view_height/vp.dxf.height/units,
+                                  scale=vp.dxf.view_height/vp.dxf.height/units*dxf_units.conversion_factor(DOC.units,4) if DOC.units else None))
+    return dict(paper=paper,viewports=viewports,linetypeGlobalScale=float(DOC.header.get('$LTSCALE',1)),sceneTimings=timings,renderStats=dict(blockCacheHits=frontend.block_cache_hits,blockCacheMisses=frontend.block_cache_misses,blockCachePoints=frontend.block_cache_points,textCachePoints=frontend.text_cache_points,textCacheHits=frontend.text_cache_hits),fontResolution={name:font.filename for name,font in ctx.fonts.items()},linetypes={lt.dxf.name:[max(abs(v)*float(DOC.header.get('$LTSCALE',1)),1e-8) for v in line_patterns.render_pattern(lt)] for lt in DOC.linetypes},measurementScale=document_scale.read(DOC),layerInfo=layer_info(),nativeLines=native_lines,nativeStyles=native_styles,drawOrder=draw_order if native_lines else [],items=items,catalog=[m for handle,m in metas.items() if handle not in backend.items],bounds=b,requiresLocalRendering=any(abs(v)>100000 for v in b),layouts=DOC.layout_names(),layout=layout_name,source=SOURCE,
                 units=int(DOC.header.get('$INSUNITS',0)),warnings=warnings,
                 entities=len(metas)+len(native_lines),rendered=len(items)+native_visible,sceneSeconds=round(time.perf_counter()-started,3))
 
@@ -1277,6 +1294,86 @@ def dimension_end_block(doc, kind):
         else:raise ValueError('Limite de cote inconnue.')
     return name
 
+def imported_angular_geometry(entity):
+    """Read the displayed arc and label in world coordinates."""
+    source = entity.get_geometry_block()
+    if source is None:
+        source = entity.virtual_block_content
+    geometry = list(source) if source is not None else []
+    arcs = [item for item in geometry if item.dxftype() == 'ARC']
+    labels = [item for item in geometry if item.dxftype() in ('MTEXT', 'TEXT')]
+    if not arcs or len(labels) != 1:
+        return None, None, geometry
+    try:
+        renderer = entity.copy().override().get_renderer()
+        a0, a1 = renderer.start_angle_rad, renderer.end_angle_rad
+        if entity.dxf.extrusion.z < 0:
+            a0, a1 = a1, a0
+        reference = arcs[0]
+        x, y = point(reference.ocs().to_wcs(reference.dxf.center))
+        radius = reference.dxf.radius
+        def at(angle):
+            return [x + radius * math.cos(angle), y + radius * math.sin(angle)]
+        return [[x, y], at(a0), at(a1), at(a0)], labels[0], geometry
+    except (ValueError, ZeroDivisionError, ezdxf.DXFError):
+        return None, None, geometry
+
+def update_imported_angular_label(entity, style, values):
+    """Edit the label without rebuilding the native dimension block."""
+    arc, original, geometry = imported_angular_geometry(entity)
+    if arc is None:
+        raise ValueError('Le texte de cette cote angulaire ne peut pas être identifié.')
+    mirrored = entity.dxf.extrusion.z < 0
+    preview = entity.copy().override()
+    preview.update(dict(style.dimstyle_attribs))
+    measurement = preview.get_renderer().measurement
+    angle = (-measurement.raw_value) % math.tau if mirrored else measurement.raw_value
+    label = measurement.text_override(angle)
+    height = float(values.get('height', original.dxf.char_height if original.dxftype() == 'MTEXT' else original.dxf.height))
+    center, start, _, _ = arc
+    radius = math.dist(center, start)
+    position = values.get('angularTextPosition')
+    point_now = point(original.dxf.insert)
+    direction = math.atan2(point_now[1] - center[1], point_now[0] - center[0])
+    if position is not None:
+        import cad196
+        x, y, *_ = cad196._pt(position)
+        direction = math.atan2(y - center[1], x - center[0])
+        offset = max(math.dist(point_now, center), radius + height + max(0, measurement.text_gap))
+        point_now = [center[0] + offset * math.cos(direction), center[1] + offset * math.sin(direction)]
+    mode = values.get('angularTextMode')
+    rotation = None
+    if mode == 'horizontal' or (position is not None and (entity.dxf.get('text_rotation', None) == 0 or style.get('dimtih', 0))):
+        rotation = 0.0
+    elif mode == 'tangent' or position is not None:
+        rotation = (math.degrees(direction) + 180) % 180 - 90
+    if position is not None:
+        entity.dxf.text_midpoint = entity.ocs().from_wcs((*point_now, original.dxf.insert.z))
+        entity.set_flag_state(entity.USER_LOCATION_OVERRIDE, True, name='dimtype')
+    block = entity.doc.blocks.new_anonymous_block(type_char='D')
+    for item in geometry:
+        cloned = item.copy()
+        if item is original:
+            if item.dxftype() == 'MTEXT':
+                cloned.text = label
+                cloned.dxf.char_height = height
+            else:
+                cloned.dxf.text = label
+                cloned.dxf.height = height
+            if position is not None:
+                cloned.dxf.insert = (*point_now, original.dxf.insert.z)
+            if rotation is not None:
+                if item.dxftype() == 'MTEXT':
+                    radians = math.radians(rotation)
+                    cloned.dxf.text_direction = (math.cos(radians), math.sin(radians), 0)
+                    cloned.dxf.discard('rotation')
+                else:
+                    cloned.dxf.rotation = rotation
+        block.add_entity(cloned)
+    entity.dxf.geometry = block.name
+    style.commit()
+    entity.virtual_block_content = None
+
 def apply_dimension_style(e,values):
     if e.has_xdata('ALCIDE_BALANCED') and any(k in values for k in ('anchors','precision','rounding','factor')):e.dxf.text='<>'
     if 'anchors' in values:
@@ -1333,6 +1430,10 @@ def apply_dimension_style(e,values):
         e.dxf.text_rotation=float(e.dxf.text_rotation)
 
     style.update(patch)
+    label_fields = {'angleUnit', 'precision', 'decimalComma', 'trimZeros', 'height', 'angularTextMode', 'angularTextPosition'}
+    if e.dimtype in (2, 5) and (e.dimtype == 2 or e.dxf.extrusion.z < 0) and set(values) <= label_fields:
+        update_imported_angular_label(e, style, values)
+        return
     if set(values)=={'textBackground'}:
         source=e.virtual_block_content or e.get_geometry_block()
         if source is not None and any(x.dxftype()=='MTEXT' for x in source):
@@ -1345,6 +1446,14 @@ def apply_dimension_style(e,values):
                 block.add_entity(entity)
             e.dxf.geometry=block.name;style.commit();e.virtual_block_content=None
             return
+    angular_position=values.get('angularTextPosition')
+    if angular_position is not None:
+        if e.dimtype!=5:raise ValueError('Déplacement réservé aux cotes angulaires à trois points.')
+        import cad196
+        cad196.place_angular_text_outside(style, cad196._pt(angular_position))
+        style.render()
+        e.virtual_block_content=None
+        return
     position=values.get('textPosition')
     if position is None and e.dxf.dimtype&128 and e.dxf.hasattr('text_midpoint'):position=point(e.dxf.text_midpoint)
     if position is not None:
@@ -1527,6 +1636,9 @@ def preview_dimension_styles(requests):
         if original is None or original.dxftype()!='DIMENSION':raise ValueError('Cote DWG introuvable.')
         if original.dxf.dimtype&15 not in range(7):raise ValueError('Ce type de cote ne peut pas être régénéré.')
         e=original.copy();handle=request['id'];e.dxf.handle=handle
+        if original.dimtype in (2, 5) and original.dxf.hasattr('geometry'):
+            e.dxf.geometry = original.dxf.geometry
+            e.virtual_block_content = None
         blocks=set(DOC.blocks.block_names())
         try:
             apply_dimension_style(e,request['style'])
@@ -1678,13 +1790,64 @@ def apply_arrows(e,value):
     if e.has_xdata('ALCIDE_ARROWS'):e.discard_xdata('ALCIDE_ARROWS')
     if spec is None:return []
     e.set_xdata('ALCIDE_ARROWS',[(1000,json.dumps(spec))]);return add_arrow_heads(e,spec)
-def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None):
+def add_presentation(doc, options):
+    from ezdxf import bbox, units
+    name = str(options['name']).strip()
+    if not name or len(name)>100 or name.casefold()=='model' or any(c in name for c in '<>/\\":;?*|='):
+        raise ValueError('Nom de présentation invalide.')
+    if not options.get('viewport') and any(name.casefold()==n.casefold() for n in doc.layout_names()):
+        raise ValueError('Une présentation porte déjà ce nom.')
+    width,height,scale=(float(options[key]) for key in ('width','height','scale'))
+    if not (50<=width<=2000 and 50<=height<=2000 and 1<=scale<=100000):
+        raise ValueError('Format ou échelle invalide.')
+    factor = units.conversion_factor(doc.units or int(options['units']),4)
+    if options.get('viewport'):
+        layout = doc.layouts.get(name)
+        viewport = doc.entitydb.get(options['viewport'])
+        if viewport is None or viewport.dxftype()!='VIEWPORT' or viewport not in layout or viewport.dxf.id<=1:
+            raise ValueError('Fenêtre introuvable dans cette présentation.')
+        if viewport.dxf.view_direction_vector != (0,0,1) or abs(viewport.dxf.view_twist_angle)>1e-8 or viewport.dxf.view_target_point != (0,0,0):
+            raise ValueError('Cette fenêtre doit être une vue en plan sans rotation.')
+        paper_factor = 25.4 if layout.dxf.get('plot_paper_units',1)==0 else 1
+        view_width,view_height = (viewport.dxf.get(key)*paper_factor*scale/factor for key in ('width','height'))
+        frame = options.get('frame')
+        if frame is not None:
+            x1,y1,x2,y2 = map(float,frame)
+            if not all(math.isfinite(v) for v in (x1,y1,x2,y2)) or not (x1<x2 and y1<y2):
+                raise ValueError('Zone de cadrage invalide.')
+            if x2-x1>view_width or y2-y1>view_height:
+                raise ValueError('La zone dépasse la fenêtre à cette échelle.')
+            viewport.dxf.view_center_point = ((x1+x2)/2,(y1+y2)/2)
+        viewport.dxf.view_height = view_height
+        return
+    bounds=bbox.extents(doc.modelspace())
+    if not bounds.has_data:
+        raise ValueError('Le modèle est vide.')
+    center = bounds.center
+    frame = options.get('frame')
+    if frame is not None:
+        x1,y1,x2,y2 = (float(value) for value in frame)
+        if not all(math.isfinite(v) for v in (x1,y1,x2,y2)) or not (x1<x2 and y1<y2):
+            raise ValueError('Zone de cadrage invalide.')
+        if (x2-x1)*factor/scale>width-20 or (y2-y1)*factor/scale>height-20:
+            raise ValueError('La zone dépasse la fenêtre à cette échelle. Choisissez une zone plus petite, un format plus grand ou un dénominateur plus élevé.')
+        center = ((x1+x2)/2,(y1+y2)/2)
+    layout=doc.layouts.new(name)
+    layout.page_setup(size=(width,height),margins=(0,0,0,0),units='mm')
+    if 'VIEWPORTS' not in doc.layers:
+        doc.layers.new('VIEWPORTS')
+    layout.add_viewport((width/2,height/2),(width-20,height-20), center,(height-20)*scale/factor)
+    for viewport in layout.query('VIEWPORT'):
+        viewport.dxf.view_target_point = (0,0,0)
+        viewport.dxf.view_direction_vector = (0,0,1)
+
+def export(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None,presentation=None):
     # The serializer creates many short-lived graph nodes. A single collection
     # after the verified transaction avoids repeated full scans during parsing.
     started=time.perf_counter();enabled=gc.isenabled();result=None
     if enabled:gc.disable()
     try:
-        result=_export_verified(filename,changes,dimensions,edits,layer_changes,reinforcement,backup,selection,expected_target_hash)
+        result=_export_verified(filename,changes,dimensions,edits,layer_changes,reinforcement,backup,selection,expected_target_hash,presentation=presentation)
         return result
     finally:
         collected=time.perf_counter()
@@ -1719,14 +1882,14 @@ def seed_verified_conversion145(path,converted):
         Path(temporary).unlink(missing_ok=True)
     return True
 
-def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None,in_memory=False):
+def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,reinforcement=None,backup=False,selection=None,expected_target_hash=None,in_memory=False,presentation=None):
     # Work on a fresh copy; never mutate the source or the active document.
     from io import StringIO
     prepared=time.perf_counter()
     path=Path(filename)
     if path.suffix.lower() not in ('.dwg','.dxf'):raise ValueError('Choisissez DWG ou DXF.')
     if SOURCE and path.resolve()==Path(SOURCE).resolve():raise ValueError('Choisir un autre nom pour préserver le dessin source.')
-    if path.suffix.lower()=='.dwg' and SOURCE and Path(SOURCE).suffix.lower()=='.dwg' and not any((changes,dimensions,edits,layer_changes,reinforcement)):
+    if path.suffix.lower()=='.dwg' and SOURCE and Path(SOURCE).suffix.lower()=='.dwg' and not any((changes,dimensions,edits,layer_changes,reinforcement,presentation)):
         return {**dwg_export.copy_original(SOURCE,path,backup=backup,expected_target_hash=expected_target_hash),'dimensions':0}
     if path.suffix.lower()=='.dwg' and SOURCE and Path(SOURCE).suffix.lower()=='.dwg':
         progress('Préparation de la base du DWG…')
@@ -2206,6 +2369,7 @@ def _export_verified(filename,changes,dimensions,edits=None,layer_changes=None,r
         for layout in out.layouts:
             for e in list(layout):
                 if e.dxf.handle not in keep:layout.delete_entity(e)
+    if presentation:add_presentation(out,presentation)
     if in_memory:return out  # 1.0.96 : extraction de sélection (blocs) sans écriture/relecture disque.
     path=Path(filename)
     if path.suffix.lower()=='.dwg':
@@ -2266,6 +2430,19 @@ def decompose_all(changes,dimensions,edits,layer_changes):
 def dispatch(r):
     global DOC,SOURCE,WARNINGS,ACTIVE
     cmd=r['cmd']
+    if cmd in ('allplan-compare-preview','allplan-compare-export','allplan-compare-discard'):
+        import allplan_compare
+        if cmd=='allplan-compare-preview':
+            return allplan_compare.preview(r['arch'],r['steel'],r.get('ifc'))
+        if cmd=='allplan-compare-discard':
+            return allplan_compare.discard_preview(r.get('previewToken'))
+        return allplan_compare.export_preview(r.get('previewToken'),r['target'],r.get('expectedTargetHash'))
+    if cmd=='allplan-orientation':
+        from allplan_fonds import main_wall_reference
+        return main_wall_reference(r['path'])
+    if cmd=='allplan-fond':
+        from allplan_fonds import generate
+        return generate(r['path'],r['target'],r.get('upper'),r.get('axis'),r.get('reference'))
     if cmd=='engine-info':return dict(python=sys.version,nativeGeometry=ezdxf.options.use_c_ext,engineVersion='0.6.0')
     if cmd in ('pdf-info','pdf-preview','pdf-import'):
         import pdf_vector_import
@@ -2346,7 +2523,7 @@ def dispatch(r):
     if cmd=='cad196':
         import cad196
         return cad196.run(sys.modules[__name__],r)
-    if cmd=='export':return export(r['path'],r.get('changes',{}),r.get('dimensions',[]),r.get('edits',{}),r.get('layerChanges',{}),r.get('reinforcement',[]),backup=bool(r.get('backup',False)),expected_target_hash=r.get('expectedTargetHash'))
+    if cmd=='export':return export(r['path'],r.get('changes',{}),r.get('dimensions',[]),r.get('edits',{}),r.get('layerChanges',{}),r.get('reinforcement',[]),backup=bool(r.get('backup',False)),expected_target_hash=r.get('expectedTargetHash'),presentation=r.get('presentation'))
     raise ValueError('Commande inconnue : '+cmd)
 
 if __name__=='__main__':
@@ -2362,6 +2539,7 @@ if __name__=='__main__':
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
             print(json.dumps(dict(id=request.get('id'),error=str(e)),ensure_ascii=False),flush=True)
+
 
 
 

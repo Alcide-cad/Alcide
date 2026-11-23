@@ -112,7 +112,18 @@
  // Poignée de texte de la cote angulaire : glisse le long de l'arc de cote (bornée à l'arc). La poignée de position 1.0.96
  // (rayon / secteur de la cote) reste disponible, placée sur l'arc à l'écart du texte (cad-move196.js).
  let textDrag=null;
- function selectedAngular(){if(selected.size!==1)return null;const id=[...selected][0];const g=groups([id])[0];if(!g||g.spec.kind!=='angular'||isLocked(entities.get(id)))return null;if((Number(g.edit.dx)||0)||(Number(g.edit.dy)||0))return null;const geo=angularGeom(g.spec);if(!geo)return null;const t=textAngle(geo,g.spec.location);const rendered=entities.get(id)?.nativeDimension?.angularTextPoint;const radius=rendered?len(sub(rendered,geo.V)):geo.R;return {g,geo,t,radius,point:rendered||[geo.V[0]+radius*Math.cos(t),geo.V[1]+radius*Math.sin(t)]};}
+ function selectedAngular(){if(selected.size!==1)return null;const id=[...selected][0];const entity=entities.get(id);if(!entity||isLocked(entity))return null;const g=groups([id])[0];
+ if(!g){
+  const native=entity.nativeDimension,arc=native?.angularArc,point=native?.angularTextPoint;
+  if(!native?.editable||!arc||!point||edits[id]?.nativeMirrorOps?.length||edits[id]?.rotation)return null;
+  const dx=edits[id]?.dx||0,dy=edits[id]?.dy||0;
+  const V=add(arc[0],[dx,dy]),a=sub(arc[1],arc[0]),b=sub(arc[2],arc[0]);
+  const a0=Math.atan2(a[1],a[0]),span=mod(Math.atan2(b[1],b[0])-a0),R=len(sub(arc[3],arc[0]));
+  if(!span||!R)return null;
+  const geo={V,a0,span,R},rendered=add(point,[dx,dy]);
+  return {id,geo,t:textAngle(geo,rendered),radius:len(sub(rendered,V)),point:rendered,offset:[dx,dy]};
+ }
+ if(g.spec.kind!=='angular')return null;if((Number(g.edit.dx)||0)||(Number(g.edit.dy)||0))return null;const geo=angularGeom(g.spec);if(!geo)return null;const t=textAngle(geo,g.spec.location);const rendered=entities.get(id)?.nativeDimension?.angularTextPoint;const radius=rendered?len(sub(rendered,geo.V)):geo.R;return {g,geo,t,radius,point:rendered||[geo.V[0]+radius*Math.cos(t),geo.V[1]+radius*Math.sin(t)]};}
  window.angularTextGrip197=()=>{const a=selectedAngular();return a?a.point:null;};
  // Point de l'arc le plus éloigné du texte (pour la poignée de position, qui ne doit pas se superposer au texte).
  window.angularArcGrip197=spec=>{if(spec?.kind!=='angular')return null;const g=angularGeom(spec);if(!g)return null;const tr=mod(textAngle(g,spec.location)-g.a0),f=Math.abs(.5*g.span-tr)>g.span*.2?.5:(Math.abs(.15*g.span-tr)>Math.abs(.85*g.span-tr)?.15:.85),best=g.a0+g.span*f;return [g.V[0]+g.R*Math.cos(best),g.V[1]+g.R*Math.sin(best)];};
@@ -121,7 +132,9 @@
   ev.preventDefault();ev.stopImmediatePropagation();textDrag={...a,cur:a.t,pointer:ev.pointerId,doc:activeId};overlay.setPointerCapture?.(ev.pointerId);status('Glissez le texte le long de l’arc de cote · relâchez pour poser · Échap annule.');},true);
  window.addEventListener('pointermove',ev=>{if(!textDrag||ev.pointerId!==textDrag.pointer)return;ev.preventDefault();ev.stopImmediatePropagation();const p=world(eventPoint(ev)),g=textDrag.geo;textDrag.cur=clampAngle(g,Math.atan2(p[1]-g.V[1],p[0]-g.V[0]));requestRender();},true);
  window.addEventListener('pointerup',async ev=>{if(!textDrag||ev.pointerId!==textDrag.pointer)return;ev.preventDefault();ev.stopImmediatePropagation();const d=textDrag;textDrag=null;requestRender();if(d.doc!==activeId||Math.abs(d.cur-d.t)<1e-9)return;
-  const g=d.geo,spec={...d.g.spec,base:d.g.spec.base||d.g.spec.location,location:[g.V[0]+g.R*Math.cos(d.cur),g.V[1]+g.R*Math.sin(d.cur)]};
+  const g=d.geo,location=[g.V[0]+g.R*Math.cos(d.cur),g.V[1]+g.R*Math.sin(d.cur)];
+  if(!d.g){await applyDimensionParameter('angularTextPosition',sub(location,d.offset),[d.id]);return;}
+  const spec={...d.g.spec,base:d.g.spec.base||d.g.spec.location,location};
   const before=snapshot();try{busyState(true,'Cote…');const f=await regenerate(d.g,spec);f();}catch(e){error?.(e);return;}finally{busyState(false);}commit(before);status('Texte de la cote déplacé le long de l’arc · Ctrl+Z annule.');},true);
  window.addEventListener('pointercancel',ev=>{if(ev.pointerId===textDrag?.pointer){textDrag=null;requestRender();}},true);
  window.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&textDrag){textDrag=null;requestRender();ev.preventDefault();ev.stopImmediatePropagation();}},true);

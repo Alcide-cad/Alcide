@@ -5,6 +5,19 @@
 (()=>{
  const svg=(inner,extra='')=>'<svg class="tool-pictogram" viewBox="0 0 24 24" aria-hidden="true"'+extra+'>'+inner+'</svg>';
  function make(id,label,icon,tip){const b=document.createElement('button');b.id=id;b.type='button';b.className='ribbon-button uniform-tool ui-button ribbon-featured ribbon104-captioned';b.innerHTML=icon+'<span class="tool-label"></span>';b.lastChild.textContent=label;b.setAttribute('aria-label',label);b.title=tip;b.dataset.fullTooltip=tip;return b;}
+ const cleaner = make('allplan-folder-cleaner','Nettoyeur de fond de plans',
+  svg('<path d="M3 7h6l2 2h10v10H3z M6 14h4v3 M13 12v5h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'),
+  'Choisir un dossier de DWG architecte et générer les fonds Allplan avec les impacts');
+ cleaner.onclick = () => window.alcide.generateAllplanFolder(activeId).catch(error => status(error.message));
+ const group = document.createElement('div');
+ group.className = 'ribbon-group';
+ group.innerHTML = '<div class="ribbon-tools"></div><small>Allplan</small>';
+ cleaner.querySelector('.tool-label').replaceChildren('Nettoyeur de', document.createElement('br'), 'fond de plans');
+ group.id = 'home-plan-actions';
+ group.lastElementChild.textContent = 'Fond de plan';
+ const planTools = ['home-move', 'home-rotate-objects', 'home-dimension'].map(id => document.getElementById(id));
+ group.firstElementChild.append(cleaner, ...planTools);
+ document.getElementById('ribbon-accueil').prepend(group);
  // Dégradé
  const fill=$('#fill-by-contour')||$('#bucket-fill-zone');
  if(fill&&window.Gradient187?.ui&&!$('#gradient-fill188')){

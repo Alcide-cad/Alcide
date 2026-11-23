@@ -29,3 +29,66 @@
 #ribboncontent :is(#ribbon-accueil,#ribbon-dessin,#ribbon-mesures,#ribbon-selection,#ribbon-affichage,#ribbon-outils,#ribbon-fichier).ribbon-refined>.ribbon-family.rf-collapsed.rf-open>.ribbon-tools>button{height:26px!important;min-height:26px!important;width:150px!important;min-width:150px!important;max-width:150px!important;padding:3px 6px!important;gap:8px!important}
 
 #ribboncontent .rf-toggle{flex-direction:column;gap:5px!important}#ribboncontent .rf-toggle svg{width:22px;height:22px;flex:0 0 22px;fill:none;stroke:#b3d58f;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+
+/* Keep the preparation, positioning and dimensioning workflow in reading order. */
+#ribbon #ribboncontent :is(#ribbon-accueil #home-plan-actions, #ribbon-dessin #drawing-primary-actions, #ribbon-mesures #annotation-primary-actions, #ribbon-selection #selection-primary-actions, #ribbon-affichage #view-primary-actions, #ribbon-outils #manage-primary-actions, #ribbon-cao #cad-primary-actions, #ribbon-armatures #rebar-primary-actions) > .ribbon-tools {
+ display: flex !important;
+ flex-flow: row nowrap !important;
+ align-items: stretch !important;
+ gap: 2px !important;
+ max-width: none !important;
+}
+#ribbon #ribboncontent :is(#ribbon-accueil #home-plan-actions, #ribbon-dessin #drawing-primary-actions, #ribbon-mesures #annotation-primary-actions, #ribbon-selection #selection-primary-actions, #ribbon-affichage #view-primary-actions, #ribbon-outils #manage-primary-actions, #ribbon-cao #cad-primary-actions, #ribbon-armatures #rebar-primary-actions) > .ribbon-tools > button {
+ display: grid !important;
+ grid-template: 18px 28px / 1fr !important;
+ place-items: start center !important;
+ align-content: start !important;
+ align-self: flex-start !important;
+ padding: 4px 2px 0 !important;
+ gap: 2px !important;
+
+ width: 56px !important;
+ min-width: 56px !important;
+ max-width: none !important;
+ height: 58px !important;
+ min-height: 58px !important;
+ max-height: 58px !important;
+}
+#ribbon #ribboncontent #ribbon-accueil #home-plan-actions #allplan-folder-cleaner { width: 86px !important; }
+#ribbon #ribboncontent #ribbon-accueil #home-plan-actions #allplan-folder-cleaner .tool-label {
+ display: block !important;
+ white-space: nowrap !important;
+ line-height: 14px !important;
+ max-height: none !important;
+ overflow: visible !important;
+ text-overflow: clip !important;
+}
+
+#ribbon #ribboncontent :is(#ribbon-accueil #home-plan-actions, #ribbon-dessin #drawing-primary-actions, #ribbon-mesures #annotation-primary-actions, #ribbon-selection #selection-primary-actions, #ribbon-affichage #view-primary-actions, #ribbon-outils #manage-primary-actions, #ribbon-cao #cad-primary-actions, #ribbon-armatures #rebar-primary-actions) button > svg { grid-area: 1 / 1 !important; align-self: center !important; width: 18px !important; height: 18px !important; margin: 0 !important; }
+#ribbon #ribboncontent :is(#ribbon-accueil #home-plan-actions, #ribbon-dessin #drawing-primary-actions, #ribbon-mesures #annotation-primary-actions, #ribbon-selection #selection-primary-actions, #ribbon-affichage #view-primary-actions, #ribbon-outils #manage-primary-actions, #ribbon-cao #cad-primary-actions, #ribbon-armatures #rebar-primary-actions) button > .tool-label { grid-area: 2 / 1 !important; align-self: start !important; margin: 0 !important; line-height: 14px !important; }
+
+#ribbon #ribboncontent #ribbon-dessin #drawing-primary-actions button:has(+ #move) { margin-right: 6px !important; }
+
+#ribbon #ribboncontent #ribbon-mesures #annotation-primary-actions > .ribbon-tools > button { width: 84px !important; min-width: 84px !important; }
+#ribbon #ribboncontent #ribbon-mesures #annotation-primary-actions .tool-label { max-width: 100% !important; white-space: normal !important; }
+#ribbon #ribboncontent #ribbon-mesures #annotation-primary-actions #ribbon-new-text { margin-left: 6px !important; }
+
+#ribbon #ribboncontent #ribbon-selection #selection-primary-actions > .ribbon-tools > button { width: 92px !important; min-width: 92px !important; }
+#ribbon #ribboncontent #ribbon-selection #selection-primary-actions .tool-label { white-space: normal !important; }
+
+#ribbon #ribboncontent #ribbon-affichage #view-primary-actions > .ribbon-tools > button { width: 94px !important; min-width: 94px !important; }
+#ribbon #ribboncontent #ribbon-affichage #view-primary-actions .tool-label { white-space: normal !important; }
+
+#ribbon #ribboncontent #ribbon-outils #manage-primary-actions > .ribbon-tools > button { width: 94px !important; min-width: 94px !important; }
+#ribbon #ribboncontent #ribbon-outils #manage-primary-actions .tool-label { white-space: normal !important; }
+
+#ribbon #ribboncontent #ribbon-cao #cad-primary-actions > .ribbon-tools > button { width: 94px !important; min-width: 94px !important; }
+#ribbon #ribboncontent #ribbon-cao #cad-primary-actions .tool-label { white-space: normal !important; }
+
+#ribbon #ribboncontent #ribbon-armatures #rebar-primary-actions > .ribbon-tools > button { width: 94px !important; min-width: 94px !important; }
+#ribbon #ribboncontent #ribbon-armatures #rebar-primary-actions .tool-label { white-space: normal !important; }
+#ribbon #ribboncontent.ribbon103 #ribbon-armatures #rebar-primary-actions > .ribbon-tools > button {
+ display:grid!important; grid-template:18px 28px / 1fr!important; place-items:start center!important;
+ align-content:start!important; width:85px!important; min-width:85px!important; max-width:85px!important;
+ height:58px!important; min-height:58px!important; max-height:58px!important; padding:4px 2px 0!important; gap:2px!important;
+}

@@ -84,7 +84,7 @@ app.whenReady().then(async()=>{
  if(!releaseStatus150.ok){dialog.showErrorBox('Installation ALCIDE incomplète','Cette installation mélange des fichiers de versions différentes ou contient un fichier manquant. Réinstallez ALCIDE depuis son installeur officiel.\n\n'+releaseStatus150.errors.slice(0,8).join('\n'));app.quit();return;}
  startWorker();
  const action=name=>()=>win?.webContents.send('menu-action',name);
- Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&Fichier',submenu:[{label:'&Nouveau dessin',accelerator:'Ctrl+N',click:action('new')},{label:'&Ouvrir…',accelerator:'Ctrl+O',click:action('open')},{type:'separator'},{label:'Importer un PDF vectoriel…',click:action('importpdf')},{label:'&Enregistrer',accelerator:'Ctrl+S',click:action('save')},{label:'Enregistrer &sous…',accelerator:'Ctrl+Shift+S',click:action('saveas')},{label:'Enregistrer un projet ALCIDE…',click:action('saveproject')},{label:'Exporter en DXF…',accelerator:'Ctrl+E',click:action('export')},{label:'Charger un LISP…',click:action('lisp')},{type:'separator'},{label:'Fermer le dessin',accelerator:'Ctrl+W',click:action('close')},{label:'Quitter',accelerator:'Alt+F4',click:()=>win?.close()}]},{label:'&Édition',submenu:[{label:'Annuler',click:action('undo')},{label:'Rétablir',click:action('redo')},{type:'separator'},{label:'Paramètres…',click:action('settings')},{label:'Raccourcis clavier…',click:action('shortcuts')}]},{label:'&Aide',submenu:[{label:'Aide et version…',accelerator:'F1',click:action('help')},{label:'Mises à jour…',click:action('updates')}]}]));
+ Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&Fichier',submenu:[{label:'&Nouveau dessin',accelerator:'Ctrl+N',click:action('new')},{label:'&Ouvrir…',accelerator:'Ctrl+O',click:action('open')},{type:'separator'},{label:'Préparer les fonds Allplan depuis un dossier…',click:generateAllplanFolder},{label:'Importer un PDF vectoriel…',click:action('importpdf')},{label:'&Enregistrer',accelerator:'Ctrl+S',click:action('save')},{label:'Enregistrer &sous…',accelerator:'Ctrl+Shift+S',click:action('saveas')},{label:'Enregistrer un projet ALCIDE…',click:action('saveproject')},{label:'Exporter en DXF…',accelerator:'Ctrl+E',click:action('export')},{label:'Charger un LISP…',click:action('lisp')},{type:'separator'},{label:'Fermer le dessin',accelerator:'Ctrl+W',click:action('close')},{label:'Quitter',accelerator:'Alt+F4',click:()=>win?.close()}]},{label:'&Édition',submenu:[{label:'Annuler',click:action('undo')},{label:'Rétablir',click:action('redo')},{type:'separator'},{label:'Paramètres…',click:action('settings')},{label:'Raccourcis clavier…',click:action('shortcuts')}]},{label:'&Aide',submenu:[{label:'Aide et version…',accelerator:'F1',click:action('help')},{label:'Mises à jour…',click:action('updates')}]}]));
  const screen=require('electron').screen,initialArea=screen.getPrimaryDisplay().workArea;
  win=new BrowserWindow({width:Math.min(1440,initialArea.width),height:Math.min(940,initialArea.height),minWidth:Math.min(640,initialArea.width),minHeight:Math.min(520,initialArea.height),title:'ALCIDE',icon:path.join(__dirname,'app-icon.ico'),backgroundColor:'#111820',autoHideMenuBar:false,webPreferences:{backgroundThrottling:false,preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  function updateWindowMinimum(){if(win?.isDestroyed())return;const area=screen.getDisplayMatching(win.getBounds()).workArea;win.setMinimumSize(Math.min(640,area.width),Math.min(520,area.height));}
@@ -109,6 +109,107 @@ app.whenReady().then(async()=>{
   savingWindow.webContents.send('wait-for-drawing-save');
  });
  win.webContents.on('did-finish-load',()=>{if(detachedInitial){win.webContents.send('detached-session',detachedInitial);return;}rendererReady=true;acceptExternalFiles(process.argv);});
+});
+async function createAllplanOutputFolder(folder, axis, date = new Date()) {
+ const pad = n => String(n).padStart(2, '0');
+ const day = [date.getFullYear(), pad(date.getMonth()+1), pad(date.getDate())].join('-');
+ const time = pad(date.getHours())+'h'+pad(date.getMinutes());
+ const orientation = axis ? 'Axe '+axis : 'Orientation originale';
+ const base = path.join(folder, 'Fonds Allplan - '+orientation+' - '+day+' '+time);
+ for (let number=1; ; number++) {
+  const candidate = number===1 ? base : base+' ('+number+')';
+  try {
+   await fs.promises.mkdir(candidate);
+   return candidate;
+  } catch (error) {
+   if (error.code!=='EEXIST') throw error;
+  }
+ }
+}
+async function compareAllplanFiles(docId) {
+ let folder=sources.has(docId)?path.dirname(sources.get(docId)):lastDialogFolder();
+ async function pick(title,extension){
+  const result=await dialog.showOpenDialog(win,{title,defaultPath:folder,filters:[{name:extension.toUpperCase(),extensions:[extension]}],properties:['openFile']});
+  if(result.canceled)return null;
+  return result.filePaths[0];
+ }
+ const arch=await pick('Choisir le DWG du RDC architecte','dwg');
+ if(!arch)return;
+ folder=path.dirname(arch);
+ const steel=await pick('Choisir le DWG d’implantation charpente','dwg');
+ if(!steel)return;
+ folder=path.dirname(steel);
+ const ifc=await pick('Choisir l’IFC charpente · Annuler pour continuer sans IFC','ifc');
+ win.setProgressBar(2);
+ const payload={arch,steel,ifc};
+ const preview=await request({cmd:'allplan-compare-preview',...payload},600000);
+ try {
+  win.setProgressBar(-1);
+  const rows=preview.gaps.map(([name,value])=>name+'  '+(value>0?'+':'')+value.toLocaleString('fr-FR')+' mm');
+  const plateDetails=preview.plates?preview.plates+' contours IFC · '+preview.anchors+' correspondances avec IMP01 ou le DWG choisi.':preview.plateEntities?preview.plateEntities+' objets sur le calque de platines source.':'Aucune platine identifiée. Ajoutez l’IFC ou utilisez un DWG avec un calque de platines.';
+  const anchorDetails=Object.entries(preview.anchorCounts||{}).map(([count,plates])=>
+   count==='0' ? plates+' platine(s) sans tige identifiée' : plates+' platine(s) avec '+count+' tige(s) IFC');
+  const review=await dialog.showMessageBox(win,{type:'question',message:'Écarts des axes après recalage',detail:'Rotation appliquée : '+preview.rotation.toLocaleString('fr-FR')+'°\n'+rows.join('  ·  ')+'\n\n'+plateDetails+(anchorDetails.length?'\n'+anchorDetails.join(' · ')+'\nPositions et diamètres issus de l’IFC, à vérifier sur le plan du charpentier.':''),buttons:['Exporter le DWG…','Annuler'],defaultId:1,cancelId:1,noLink:true});
+  if(review.response!==0)return;
+  const result=await dialog.showSaveDialog(win,{title:'Enregistrer le fond archi et charpente',defaultPath:path.join(path.dirname(arch),'RDC - Archi et charpente.dwg'),filters:[{name:'DWG',extensions:['dwg']}],properties:['showOverwriteConfirmation']});
+  if(result.canceled)return;
+  const target=path.extname(result.filePath)?result.filePath:result.filePath+'.dwg';
+  if(path.extname(target).toLowerCase()!=='.dwg')throw Error('Choisissez un fichier DWG.');
+  let expectedTargetHash=null;
+  try {expectedTargetHash=await drawingDiskHash(target);}
+  catch(error) {if(error.code!=='ENOENT')throw error;}
+  win.setProgressBar(2);
+  const published=await request({cmd:'allplan-compare-export',previewToken:preview.previewToken,target,expectedTargetHash},600000);
+  if(published.recovery){
+   await dialog.showMessageBox(win,{type:'warning',message:'Le DWG de destination est conservé',detail:'Copie de secours : '+published.path});
+  }
+  shell.showItemInFolder(published.path);
+ } finally {
+  await request({cmd:'allplan-compare-discard',previewToken:preview.previewToken},10000).catch(()=>{});
+ }
+}
+let generatingFunds = false;
+async function generateAllplanFolder(docId) {
+ if (generatingFunds) return;
+ generatingFunds = true;
+ try {
+  const mode=await dialog.showMessageBox(win,{type:'question',message:'Nettoyeur de fond de plans',buttons:['Nettoyer un dossier','Comparer archi et charpente','Annuler'],defaultId:0,cancelId:2,noLink:true});
+  if(mode.response===2)return;
+  if(mode.response===1){await compareAllplanFiles(docId);return;}
+
+  const pick = await dialog.showOpenDialog(win, {title:'Choisir le dossier des DWG architecte',defaultPath:sources.has(docId)?path.dirname(sources.get(docId)):lastDialogFolder()||app.getPath('desktop'),properties:['openDirectory']});
+  if (pick.canceled) return;
+  const folder = pick.filePaths[0];
+  const files = (await fs.promises.readdir(folder,{withFileTypes:true})).filter(e=>e.isFile() && /\.dwg$/i.test(e.name)).sort((a,b)=>a.name.localeCompare(b.name));
+  if (!files.length) {await dialog.showMessageBox(win,{message:'Ce dossier ne contient aucun DWG.'});return;}
+  const choice = await dialog.showMessageBox(win,{type:'question',message:'Orientation des fonds et des impacts',detail:'Le mur principal du niveau le plus bas sert de référence à tous les étages reconnus.',buttons:['Orientation d’origine','Mur principal sur X','Mur principal sur Y','Annuler'],defaultId:0,cancelId:3,noLink:true});
+  if (choice.response === 3) return;
+  const axis = [null,'X','Y'][choice.response];
+  function levelOf(name) {
+   const stem = path.parse(name).name.toUpperCase().trim();
+   if (/(?:^|[ _-])RDC(?=$|[ _(-])/.test(stem)) return 0;
+   const match = /(?:^|[ _-])(?:E|R\+)([1-9]\d*)(?=$|[ _(-])/.exec(stem);
+   return match ? Number(match[1]) : null;
+  }
+  const levels = files.filter(f=>levelOf(f.name)!==null).sort((a,b)=>levelOf(a.name)-levelOf(b.name));
+  const reference = axis && levels.length ? await request({cmd:'allplan-orientation',path:path.join(folder,levels[0].name)},600000) : null;
+  const dest = await createAllplanOutputFolder(folder,axis);
+  const errors = [];
+  for (const [i,file] of files.entries()) {
+   win.setProgressBar(i/files.length);
+   const level = levelOf(file.name);
+   const above = level === null ? [] : files.filter(f=>levelOf(f.name)===level+1);
+   if (level===null && /(?:façades?|facades?|coupes?|topo|plan de masse)/i.test(file.name)) {errors.push(file.name+' — Vue annexe.');continue;}
+   try {await request({cmd:'allplan-fond',axis,reference:level===null?null:reference,path:path.join(folder,file.name),upper:above.length===1 ? path.join(folder,above[0].name) : null,target:path.join(dest,file.name)},600000);}
+   catch (error) {errors.push(file.name+' — '+error.message);}
+  }
+  await dialog.showMessageBox(win,{message:(files.length-errors.length)+' fond(s) généré(s) sur '+files.length,detail:[dest,...errors].join('\n')});
+  if (errors.length < files.length) await shell.openPath(dest);
+ } catch(error) {await dialog.showMessageBox(win,{type:'error',message:error.message});}
+ finally {generatingFunds=false;if(win && !win.isDestroyed()) win.setProgressBar(-1);}
+}
+ipcMain.handle('generate-allplan-folder', (event, docId) => {
+ if (event.sender === win?.webContents) return generateAllplanFolder(docId);
 });
 ipcMain.handle('choose-open',async()=>{const r=await dialog.showOpenDialog(win,{title:'Ouvrir un dessin',buttonLabel:'Ouvrir',defaultPath:lastDialogFolder()||app.getPath('documents'),filters:[{name:'Plans DWG / DXF / PDF vectoriels / projets Alcide',extensions:['dwg','dxf','pdf','alcide']}],properties:['openFile']});if(r.canceled)return null;rememberDialogFolder(r.filePaths[0]);return r.filePaths[0];});
 ipcMain.handle('choose-pdf',async()=>{const r=await dialog.showOpenDialog(win,{title:'Importer un PDF vectoriel',defaultPath:lastDialogFolder()||app.getPath('desktop'),filters:[{name:'Plans PDF',extensions:['pdf']}],properties:['openFile']});if(r.canceled)return null;rememberDialogFolder(r.filePaths[0]);return r.filePaths[0];});
@@ -188,6 +289,7 @@ async function saveDrawing(data,dxf=false){
   const result=await dialog.showSaveDialog(win,{title:dxf?'Exporter en DXF':'Enregistrer sous',buttonLabel:'Enregistrer',defaultPath:dialogSavePath(newDrawingSources.has(source)?'Dessin sans titre.'+ext:suggestedName),filters:[{name:dxf?'Dessin DXF':'Dessin DWG 2018',extensions:[ext]}],properties:['showOverwriteConfirmation']});
   if(result.canceled)return null;target=result.filePath;if(!path.extname(target))target+='.'+ext;
  }
+ if(data.presentation && !data.presentation.viewport && (diskPathKey(target)===diskPathKey(source) || (current && diskPathKey(target)===diskPathKey(current))))throw Error('Choisissez un nouveau fichier DWG pour cette présentation.');
  target=path.resolve(target);if(path.extname(target).toLowerCase()!==(dxf?'.dxf':'.dwg'))throw Error(dxf?'Choisissez un fichier .dxf.':'Choisissez un fichier .dwg.');
  const baseline=drawingDiskVersions.get(data.docId);
  const expectedTargetHash=baseline&&diskPathKey(baseline.path)===diskPathKey(target)?baseline.hash:null;

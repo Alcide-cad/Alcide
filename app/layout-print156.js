@@ -7,21 +7,110 @@
  let saved={};try{saved=JSON.parse(localStorage.getItem('layoutPrint156')||'{}');}catch{}
  const key=()=>JSON.stringify([scene?.source,scene?.layout]);
  function group(name){const g=document.createElement('section');g.className='print156-group';const body=document.createElement('div');body.className='print156-controls';const caption=document.createElement('small');caption.textContent=name;g.append(body,caption);panel.append(g);return body;}
+ const makeLayout=document.createElement('button');
+ makeLayout.id='new-presentation';makeLayout.type='button';makeLayout.textContent='Nouvelle présentation';
+ makeLayout.title='Créer une feuille DWG avec une fenêtre à échelle définie';
+ document.querySelector('#layouts').after(makeLayout);
+ const form=document.createElement('dialog');
+ form.id='new-presentation-dialog';
+ form.innerHTML='<form method="dialog"><h2>Nouvelle présentation</h2><label id="viewport-choice" hidden>Fenêtre <select id="viewport-target"></select></label><p>Choisissez le format et l’échelle de la fenêtre.</p><label>Nom <input name="name" required maxlength="100"></label><label>Format paysage <select name="format"><option>A4</option><option>A3</option><option>A2</option><option>A1</option><option>A0</option></select></label><label>Échelle 1: <input name="scale" type="number" min="1" max="100000" value="100" step="any" required></label><p><button type="button" id="presentation-pick">Encadrer sur le plan</button> <span id="presentation-frame-status">Modèle entier</span></p><p>La copie DWG sera ouverte sur cette feuille.</p><button value="cancel" formnovalidate>Annuler</button><button value="create">Créer et enregistrer sous…</button></form>';
+ document.body.append(form);
+ let frame=null, picking=null, editing=null;
+ const viewportChoice=form.querySelector('#viewport-choice'), viewportTarget=form.querySelector('#viewport-target');
+ const fields=form.querySelector('form').elements;
+ function viewportScale(){const v=editing.viewports[Number(viewportTarget.value)];fields.scale.value=Number((v.scale ?? v.ratio*({mm:1,cm:10,m:1000}[$('#units').value]||1)).toFixed(6));}
+ viewportTarget.onchange=viewportScale;
+ const frameStatus=form.querySelector('#presentation-frame-status');
+ const pickButton=form.querySelector('#presentation-pick');
+ function endPick(keep) {
+  const pick=picking;
+  if(!pick)return;
+  picking=null;
+  pick.listeners.abort();
+  pick.box.remove();
+  if(activeId!==pick.doc || scene?.layout!=='Model')return;
+  if(keep)frame=keep;
+  frameStatus.textContent=frame?'Zone encadrée':editing?'Cadrage actuel':'Modèle entier';
+  form.returnValue='';
+  form.showModal();
+ }
+ pickButton.onclick=async()=>{
+  if(editing&&scene?.layout!=='Model'){
+   form.close('pick');
+   const selector=document.getElementById('layouts');selector.value='Model';await selector.onchange();
+  }
+  if(scene?.layout!=='Model')return;
+  const box=document.createElement('div');
+  box.style.cssText='position:fixed;pointer-events:none;z-index:99999;border:1px dashed #7ce2ff;background:#7ce2ff22';
+  box.hidden=true;document.body.append(box);
+  const listeners=new AbortController();
+  const opts={capture:true,signal:listeners.signal};
+  const pick=picking={doc:activeId,box,listeners,start:null};
+  form.close('pick');
+  status('Cliquez le premier coin de la zone à placer sur la feuille.');
+  document.addEventListener('pointerdown',e=>{
+   if(e.target!==overlay||e.button!==0)return;
+   e.preventDefault();e.stopImmediatePropagation();
+   if(activeId!==pick.doc||scene?.layout!=='Model'){endPick();return;}
+   const point=eventPoint(e);
+   if(!pick.start){pick.start=world(point);status('Cliquez le coin opposé · Échap pour annuler.');return;}
+   const other=world(point), a=pick.start;
+   if(Math.abs(a[0]-other[0])<1e-8||Math.abs(a[1]-other[1])<1e-8)return;
+   endPick([Math.min(a[0],other[0]),Math.min(a[1],other[1]),Math.max(a[0],other[0]),Math.max(a[1],other[1])]);
+  },opts);
+  document.addEventListener('pointermove',e=>{
+   if(!pick.start||e.target!==overlay)return;
+   const a=screen(pick.start), b=eventPoint(e), r=overlay.getBoundingClientRect();
+   Object.assign(box.style,{left:r.left+Math.min(a[0],b[0])+'px',top:r.top+Math.min(a[1],b[1])+'px',width:Math.abs(a[0]-b[0])+'px',height:Math.abs(a[1]-b[1])+'px'});box.hidden=false;
+  },opts);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();endPick();}},opts);
+ };
+ makeLayout.onclick=()=>{if(!scene||busy||drawingSaveInFlight)return;editing=null;form.querySelector('h2').textContent='Nouvelle présentation';form.querySelector('button[value=create]').textContent='Créer et enregistrer sous…';viewportChoice.hidden=true;fields.name.readOnly=false;fields.format.disabled=false;fields.scale.value=100;frame=null;frameStatus.textContent='Modèle entier';pickButton.disabled=scene.layout!=='Model';pickButton.title=pickButton.disabled?'Passez dans Espace objet pour encadrer le plan':'';let index=1;while(scene.layouts.some(n=>n.toLowerCase()===('Présentation '+index).toLowerCase()))index++;form.querySelector('[name=name]').value='Présentation '+index;form.returnValue='';form.showModal();};
+ form.querySelector('form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(event.submitter?.value!=='create'){form.close('cancel');return;}
+  form.close();
+  const data=new FormData(form.querySelector('form'));
+  const [width,height]=(editing ? [420,297] : {A4:[297,210],A3:[420,297],A2:[594,420],A1:[841,594],A0:[1189,841]}[data.get('format')]);
+  const units={mm:4,cm:5,m:6,in:1,ft:2}[$('#units').value];
+  const name=data.get('name').trim();
+  const doc=activeId;
+  const viewport=editing?.viewports[Number(viewportTarget.value)]?.handle;
+  const result=await saveDrawing(!viewport,false,null,{name,width,height,scale:Number(data.get('scale')),units,frame,viewport});
+  if(!result?.verified||result.recovery||activeId!==doc)return;
+  await closeTab(doc);
+  await openFile(result.path);
+  const selector=document.getElementById('layouts');
+  selector.value=name;await selector.onchange();
+ });
+ const primary=group('Présentation et sortie');primary.classList.add('print156-primary-controls');
  const page=group('Feuille'),scale=group('Impression'),appearance=group('Rendu papier'),output=group('Sortie');
  function field(host,id,label,width,type){const row=document.createElement('label');row.className='print156-field';const text=document.createElement('span');text.textContent=label;const source=q(id),input=source.cloneNode(true);input.id='print156-'+id;input.removeAttribute('style');if(type)input.type=type;input.style.width=width+'px';row.append(text,input);host.append(row);controls.set(id,input);input.addEventListener('change',()=>{source.value=input.value;source.checked=input.checked;source.dispatchEvent(new Event('input',{bubbles:true}));source.dispatchEvent(new Event('change',{bubbles:true}));persist();sync();});return input;}
  const icons={orient:'M4 7h15m-3-3 3 3-3 3M20 17H5m3-3-3 3 3 3',preview:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zm7 0a3 3 0 1 0 6 0 3 3 0 0 0-6 0',print:'M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6z',pdf:'M5 2h10l4 4v16H5zM15 2v5h4M8 12h8M8 16h6',settings:'M3 6h18M3 12h18M3 18h18M8 3v6M16 9v6M10 15v6',fit:'M3 9V3h6m6 0h6v6M3 15v6h6m6 0h6v-6'};
  function button(host,id,label,icon,action){const b=document.createElement('button');b.id='print156-'+id;b.type='button';b.title=label;b.setAttribute('aria-label',label);b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+icons[icon]+'"/></svg><span>'+label+'</span>';b.onclick=async()=>{if(busy)return;try{await action();}finally{sync();}};host.append(b);return b;}
- field(page,'format','Format',125);button(page,'orient','Orientation','orient',()=>{q('orient').click();persist();});
+ const editViewport=button(primary,'edit-viewport','Modifier la fenêtre','fit',()=>{
+  if(!scene?.viewports?.length)return;
+  editing={viewports:scene.viewports};frame=null;
+  form.querySelector('h2').textContent='Modifier la fenêtre';
+  form.querySelector('button[value=create]').textContent='Enregistrer la fenêtre';
+  fields.name.value=scene.layout;fields.name.readOnly=true;fields.format.disabled=true;
+  viewportChoice.hidden=editing.viewports.length<2;
+  viewportTarget.replaceChildren(...editing.viewports.map((v,i)=>new Option('Fenêtre '+(i+1)+' · '+v.handle,i)));
+  viewportScale();frameStatus.textContent='Cadrage actuel';
+  pickButton.disabled=false;pickButton.title='';
+  form.returnValue='';form.showModal();
+ });
+ field(page,'format','Format',125);button(primary,'orient','Orientation','orient',()=>{q('orient').click();persist();});
  field(page,'width','Largeur mm',72);field(page,'height','Hauteur mm',72);
  field(scale,'scale','Échelle 1:',68).title='Échelle de sortie de la feuille : 1:1 conserve les dimensions papier et les échelles des fenêtres du DWG.';
- field(scale,'margin','Marges mm',64);field(scale,'scope','Cadrage',150);button(scale,'fit','Ajuster','fit',()=>{Paper116.fit();persist();});
+ field(scale,'margin','Marges mm',64);field(scale,'scope','Cadrage',150);button(primary,'fit','Ajuster','fit',()=>{Paper116.fit();persist();});
  field(appearance,'dpi','Qualité',160);field(appearance,'colors','Couleurs harmonisées',16,'checkbox');
  button(appearance,'settings','Tous les réglages','settings',()=>Paper116.open());
- field(output,'profile','Préréglage',140);button(output,'preview','Aperçu','preview',()=>Paper116.open());button(output,'pdf','PDF','pdf',()=>q('pdf').onclick()).classList.add('print156-primary');button(output,'print','Imprimer','print',()=>q('print').onclick());
+ field(output,'profile','Préréglage',140);button(primary,'preview','Aperçu','preview',()=>Paper116.open());button(primary,'pdf','PDF','pdf',()=>q('pdf').onclick()).classList.add('print156-primary');button(primary,'print','Imprimer','print',()=>q('print').onclick());
  const info=document.createElement('span');info.className='print156-status';info.setAttribute('role','status');output.append(info);
  function prepare(){if(!active())return;const id=key();if(id===currentKey)return;if(currentKey===null)modelSettings=Paper116.presentation();currentKey=id;const value=saved[id];if(value){Paper116.restorePresentation(value);}else if(scene.paper){Paper116.restorePresentation({width:scene.paper.widthMM,height:scene.paper.heightMM,scale:1,margin:0,dpi:scene.paper.widthMM*scene.paper.heightMM*(150/25.4)**2>36000000?96:150,scope:'sheet',title129:''});}sync();}
  function persist(){if(!active())return;try{Paper116.config();saved[key()]=Paper116.presentation();const keys=Object.keys(saved);while(keys.length>40)delete saved[keys.shift()];localStorage.setItem('layoutPrint156',JSON.stringify(saved));Paper116.remember();}catch{}}
- function sync(){const on=active();tab.hidden=!on;if(on&&currentKey!==key())prepare();for(const [id,input]of controls){const source=q(id);if(input.tagName==='SELECT'&&input.innerHTML!==source.innerHTML)input.innerHTML=source.innerHTML;if(document.activeElement!==input)input.value=source.value;if(input.type==='checkbox')input.checked=source.checked;input.disabled=busy||source.disabled;}for(const b of panel.querySelectorAll('button'))b.disabled=busy;info.textContent=q('info').textContent;info.title=info.textContent;if(!on){panel.hidden=true;if(tab.getAttribute('aria-selected')==='true')activateRibbon(previousTab);if(currentKey!==null&&modelSettings){Paper116.restorePresentation(modelSettings);modelSettings=null;}currentKey=null;}}
+ function sync(){makeLayout.disabled=!scene||busy||drawingSaveInFlight;const on=active();tab.hidden=!on;if(on&&currentKey!==key())prepare();for(const [id,input]of controls){const source=q(id);if(input.tagName==='SELECT'&&input.innerHTML!==source.innerHTML)input.innerHTML=source.innerHTML;if(document.activeElement!==input)input.value=source.value;if(input.type==='checkbox')input.checked=source.checked;input.disabled=busy||source.disabled;}for(const b of panel.querySelectorAll('button'))b.disabled=busy;editViewport.disabled=busy||!scene?.viewports?.length;info.textContent=q('info').textContent;info.title=info.textContent;if(!on){panel.hidden=true;if(tab.getAttribute('aria-selected')==='true')activateRibbon(previousTab);if(currentKey!==null&&modelSettings){Paper116.restorePresentation(modelSettings);modelSettings=null;}currentKey=null;}}
  tab.onclick=()=>{prepare();activateRibbon('print156');};
  let wasActive=false,lastDoc=null;function schedule(){if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;const on=active(),id=on?key():null;if(on&&(!wasActive||id!==lastDoc)){previousTab=document.querySelector('.ribbon-tabs [aria-selected="true"]')?.dataset.tab||'accueil';if(previousTab==='print156')previousTab='accueil';prepare();activateRibbon('print156');}wasActive=on;lastDoc=id;sync();});}
  const refreshBefore=refresh;refresh=function(...args){const r=refreshBefore.apply(this,args);schedule();return r;};
@@ -30,3 +119,12 @@
  window.LayoutPrint156={prepare,sync};schedule();
  const style=document.createElement('style');style.textContent=`#ruban-print156:not([hidden]){color:#97dbe0;border-bottom:2px solid #69b9c5}#ribboncontent #ribbon-print156{gap:0;align-items:stretch;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:thin!important}#ribbon-print156[hidden]{display:none!important}#ribbon-print156 .print156-group{flex:0 0 auto;display:flex;flex-direction:column;padding:3px 10px 1px;border-right:1px solid var(--border,#3c5361);gap:3px}#ribbon-print156 .print156-controls{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,30px);align-items:center;gap:4px 10px;flex:1}#ribbon-print156 small{text-align:center;color:var(--muted,#adbac4);font-size:10px}#ribbon-print156 .print156-field{display:flex;align-items:center;gap:6px;margin:0;font-size:11px;white-space:nowrap}#ribbon-print156 input,#ribbon-print156 select{box-sizing:border-box;min-height:26px!important;height:26px!important;padding:2px 5px;font-size:11px;max-width:160px;min-width:0}#ribbon-print156 input[type=checkbox]{width:16px!important;height:16px!important;min-height:16px!important;accent-color:#a9df80}#ribboncontent #ribbon-print156 button{height:28px!important;min-height:28px!important;min-width:0!important;width:auto!important;display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;padding:3px 7px!important;font-size:11px;white-space:nowrap}#ribbon-print156 button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;flex:0 0 18px}#ribbon-print156 button .tool-label{display:inline!important}#ribbon-print156 .print156-primary{border-color:#7ba759;color:#bce691}#ribbon-print156 .print156-status{max-width:160px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#ribbon-print156 .numeric-stepper{height:26px!important;min-height:26px!important;max-height:26px!important;width:auto!important;flex:0 0 auto;gap:0}#ribbon-print156 .numeric-stepper-buttons{width:18px!important;flex-basis:18px!important;height:26px!important}#ribboncontent #ribbon-print156 .numeric-stepper-buttons>button{height:13px!important;min-height:0!important;max-height:13px!important;width:18px!important;padding:0!important;font-size:10px!important;line-height:11px!important;display:block!important}#ribboncontent #ribbon-print156::-webkit-scrollbar{display:block!important;height:4px!important}`;document.head.append(style);
 })();
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+#ribbon #ribbon-print156 .print156-primary-controls { display:flex; align-items:flex-start; gap:3px; }
+#ribbon #ribbon-print156 .print156-primary-controls > button {
+ display:grid!important; grid-template:18px 16px / 1fr; justify-items:center; align-content:start;
+ width:76px!important; height:54px!important; min-height:54px!important; padding:5px 2px!important; gap:4px;
+}
+#ribbon #ribbon-print156 .print156-primary-controls > button > svg { width:18px; height:18px; }
+</style>`);
